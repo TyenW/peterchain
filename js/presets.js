@@ -1,84 +1,115 @@
 /**
- * DER Builder — Presets de Exemplos (Linguagem Natural e Sintaxe de Blocos)
+ * DER Builder — Presets de Exemplos (Notação Peter Chen & Pseudo-Comandos)
  */
 const DERPresets = {
-  blocos: {
-    title: 'Sintaxe de Blocos { }',
-    text: `// Exemplo no formato compacto Entidade { atributos... }
-// Atributos com * ou palavras como cpf/codigo são marcados automaticamente como CHAVE (sublinhados)
-
-aluno {
-  *cpf,
-  nome,
-  matricula
+  eer: {
+    title: '1. Modelo EER Estendido Completo',
+    text: `// 1. Entidade Forte e Atributos:
+Funcionario {
+  *CPF,
+  Nome,
+  ~Idade,
+  ++Telefones
 }
 
-curso {
-  *codigo,
-  nome,
-  carga_horaria
+// 2. Entidade Fraca e Chave Parcial:
+entidade fraca Dependente {
+  _Nome_dependente,
+  Parentesco
 }
 
-professor {
-  *crm,
-  nome,
-  especialidade
-}
+// 3. Relacionamento Fraco (Identificador):
+relacionamento fraco possui (Funcionario 1:N Dependente)
 
-// Relacionamentos e Cardinalidades no formato bloco
-matricula (aluno N : N curso)
-ministra (professor 1 : N curso)`
+// 4. Herança EER (Disjunta / Sobreposta / União):
+especializacao d (Pessoa -> Aluno, Professor)`
   },
 
   academico: {
-    title: 'Sistema Acadêmico',
-    text: `Um sistema acadêmico possui alunos e cursos. Cada aluno pode estar matriculado em vários cursos e cada curso pode possuir vários alunos.
+    title: '2. Sistema Acadêmico Completo',
+    text: `// Entidades e Atributos:
+Aluno {
+  *Matricula,
+  Nome,
+  *CPF
+}
 
-O aluno possui matrícula, nome e CPF.
-O curso possui código, nome e carga horária.
-O professor possui código, nome e especialidade.
+Curso {
+  *Codigo,
+  Nome,
+  CargaHoraria
+}
 
-Cada curso pode ser ministrado por um professor e um professor pode ministrar vários cursos.
-A disciplina possui código e nome. Cada curso possui várias disciplinas.`
+Professor {
+  *Matricula,
+  Nome,
+  Especialidade
+}
+
+Disciplina {
+  *Codigo,
+  Nome
+}
+
+// Relacionamentos e Cardinalidades:
+matricula (Aluno N : N Curso)
+ministra (Professor 1 : N Curso)
+compoe (Curso 1 : N Disciplina)`
   },
 
   loja: {
-    title: 'Loja Virtual',
-    text: `Uma loja virtual possui clientes, pedidos e produtos.
+    title: '3. Loja Virtual / E-commerce',
+    text: `Cliente {
+  *CPF,
+  Nome,
+  Email,
+  ++Telefones
+}
 
-O cliente possui CPF, nome, email e telefone.
-O pedido possui número, data e valor total.
-O produto possui código, nome e preço.
-A categoria possui código e nome.
+Pedido {
+  *Numero,
+  Data,
+  ValorTotal
+}
 
-Cada cliente realiza vários pedidos. Cada pedido pertence a um cliente.
-Um pedido pode conter vários produtos e cada produto pode estar em vários pedidos.
-Cada produto pertence a uma categoria e uma categoria possui vários produtos.`
+Produto {
+  *Codigo,
+  Nome,
+  Preco
+}
+
+Categoria {
+  *Codigo,
+  Nome
+}
+
+realiza (Cliente 1 : N Pedido)
+contem (Pedido N : N Produto)
+pertence (Produto N : 1 Categoria)`
   },
 
   biblioteca: {
-    title: 'Sistema de Biblioteca',
-    text: `Um sistema de biblioteca controla leitores, livros e empréstimos.
+    title: '4. Sistema de Biblioteca',
+    text: `Leitor {
+  *Codigo,
+  Nome,
+  *CPF,
+  Telefone
+}
 
-O leitor possui código, nome, CPF e telefone.
-O livro possui código, título, ano e editora.
-O autor possui código e nome.
+Livro {
+  *ISBN,
+  Titulo,
+  Ano,
+  Editora
+}
 
-Um leitor realiza vários empréstimos e cada empréstimo pertence a um leitor.
-Um empréstimo pode conter vários livros.
-Um livro pode ser escrito por vários autores e cada autor pode escrever vários livros.`
-  },
+Autor {
+  *Codigo,
+  Nome
+}
 
-  hospital: {
-    title: 'Gestão Hospitalar',
-    text: `Um hospital gerencia pacientes, médicos e consultas.
-
-O paciente possui CPF, nome, data nascimento e telefone.
-O médico possui CRM, nome e especialidade.
-A consulta possui código, data e horário.
-
-Cada paciente agenda várias consultas e cada consulta pertence a um paciente.
-Cada médico realiza várias consultas e cada consulta é atendida por um médico.
-O medicamento possui código e nome. Uma consulta pode prescrever vários medicamentos.`
+empresta (Leitor 1 : N Livro)
+escreve (Autor N : N Livro)`
   }
 };

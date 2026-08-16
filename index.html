@@ -29,39 +29,51 @@
       </div>
       <div class="title-wrap">
         <h1>DER Builder <span class="badge">Peter Chen</span></h1>
-        <p class="subtitle">Criador e editor de diagramas ER via linguagem natural em Português</p>
+        <p class="subtitle">Criador e editor de diagramas ER via pseudo-comandos e código ER</p>
       </div>
     </div>
 
     <div class="header-actions">
+      <!-- Mobile View Switcher Tabs -->
+      <div class="mobile-tabs" id="mobile-view-tabs">
+        <button class="mobile-tab-btn active" id="tab-code-btn" data-view="code">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          Código ER
+        </button>
+        <button class="mobile-tab-btn" id="tab-canvas-btn" data-view="canvas">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+          Diagrama
+        </button>
+      </div>
+
       <div class="project-title-container">
         <input type="text" id="project-title-input" value="Sistema Acadêmico" placeholder="Nome do Projeto" title="Clique para renomear">
       </div>
 
       <button id="btn-preset-menu" class="btn btn-secondary" title="Carregar Exemplo">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h7"/></svg>
-        Exemplos
+        <span class="btn-text-label">Exemplos</span>
       </button>
 
       <button id="btn-new-diagram" class="btn btn-secondary" title="Novo Diagrama (Limpar)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-        Novo
+        <span class="btn-text-label">Novo</span>
       </button>
 
       <button id="btn-projects-modal" class="btn btn-secondary" title="Meus Diagramas Salvos">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
-        Abrir
+        <span class="btn-text-label">Abrir</span>
       </button>
 
       <button id="btn-save-local" class="btn btn-secondary" title="Salvar no Navegador">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-        Salvar
+        <span class="btn-text-label">Salvar</span>
       </button>
 
       <div class="dropdown">
         <button id="btn-export-dropdown" class="btn btn-primary">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-          Exportar
+          <span class="btn-text-label">Exportar</span>
         </button>
         <div class="dropdown-content" id="export-menu">
           <button id="export-png"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> Imagem PNG</button>
@@ -78,53 +90,58 @@
   <!-- Main Container Split Layout -->
   <main class="main-layout" id="main-layout">
 
-    <!-- Left Panel: NLP Terminal & Commands -->
-    <section class="nlp-panel" id="nlp-panel">
+    <!-- Left Panel: ER Code Terminal & Commands -->
+    <section class="nlp-panel active" id="nlp-panel">
       <div class="panel-header">
         <div class="panel-title">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-          Terminal de Linguagem Natural
-        </div>
-        <div class="panel-actions">
-          <button id="btn-toggle-nlp-mode" class="btn-text active" title="Alternar entre descrição livre e comandos">Modo Parágrafo</button>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          Editor de Código ER / Pseudo-Comandos (Peter Chen)
         </div>
       </div>
 
       <div class="nlp-content">
         <div class="nlp-editor-wrapper">
           <div class="editor-header-bar">
-            <span class="editor-lang">português (pt-BR)</span>
+            <span class="editor-lang">código er (peter chen)</span>
             <div style="display:flex; gap:4px;">
-              <button id="btn-cmd-help" class="btn-icon" title="Ver Comandos Suportados"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></button>
-              <button id="btn-clear-text" class="btn-icon" title="Limpar texto"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>
+              <button id="btn-cmd-help" class="btn-icon" title="Ver Guia de Sintaxe & Pseudo-Comandos"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></button>
+              <button id="btn-clear-text" class="btn-icon" title="Limpar código"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>
             </div>
           </div>
           
-          <textarea id="nlp-input" placeholder="Modos de Entrada Suportados:
+          <textarea id="nlp-input" style="font-family:var(--font-mono); font-size:12px;" placeholder="// Sintaxe do Editor de Código ER / Pseudo-Comandos:
 
-1. Linguagem Natural em Português:
-Um sistema acadêmico possui alunos e cursos. O aluno possui matrícula, nome e CPF. O curso possui código e nome. Cada aluno pode estar matriculado em vários cursos.
-
-2. Modo de Blocos:
-aluno {
-  *cpf,
-  nome,
-  matricula
+// 1. Entidades e Atributos:
+Funcionario {
+  *CPF,            // Atributo Chave (Sublinhado)
+  Nome,
+  ~Idade,          // Derivado (Elipse Tracejada)
+  ++Telefones      // Multivalorado (Elipse Dupla)
 }
-matricula (aluno N : N curso)
 
-3. Comandos Incrementais:
-> criar entidade aluno
-> adicionar atributo chave cpf em aluno
-> criar relacionamento matricula entre aluno e curso (cardinalidade N:N)"></textarea>
+entidade fraca Dependente {
+  _Nome_dependente, // Chave Parcial (Sublinhado Tracejado)
+  Parentesco
+}
+
+// 2. Relacionamentos e Cardinalidades:
+relacionamento fraco possui (Funcionario 1:N Dependente)
+lotado (Funcionario 1:N Departamento)
+
+// 3. Herança EER:
+especializacao d (Pessoa -> Aluno, Professor)
+
+// 4. Comandos Incrementais:
+> criar entidade Aluno
+> adicionar atributo *CPF em Aluno"></textarea>
         </div>
 
         <div class="nlp-controls">
           <button id="btn-generate-diagram" class="btn btn-success btn-large">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-            Gerar Diagrama
+            Executar Código
           </button>
-          <button id="btn-append-command" class="btn btn-secondary" title="Executar apenas novos comandos sem sobrescrever tudo">
+          <button id="btn-append-command" class="btn btn-secondary" title="Executar comandos incrementais sem apagar o diagrama atual">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Executar Incremental
           </button>
@@ -133,11 +150,11 @@ matricula (aluno N : N curso)
         <!-- Terminal Output / Execution Log -->
         <div class="terminal-log-wrapper">
           <div class="terminal-log-header">
-            <span>Log de Interpretação & Regras</span>
+            <span>Log do Parser de Código ER / EER</span>
             <span id="parsed-summary" class="badge-sm">0 Entidades, 0 Atributos, 0 Relacionamentos</span>
           </div>
           <div id="terminal-log" class="terminal-log">
-            <div class="log-entry info">> Sistema pronto. Digite a descrição e clique em [Gerar Diagrama].</div>
+            <div class="log-entry info">> Editor pronto. Digite o código ER/EER e clique em [Executar Código].</div>
           </div>
         </div>
       </div>
@@ -308,31 +325,27 @@ matricula (aluno N : N curso)
   <div class="modal-overlay hidden" id="modal-presets">
     <div class="modal-card">
       <div class="modal-header">
-        <h3>Exemplos de Diagramas DER</h3>
+        <h3>Exemplos de Códigos ER / Pseudo-Comandos</h3>
         <button class="modal-close" id="btn-close-modal-presets">&times;</button>
       </div>
       <div class="modal-body">
-        <p>Selecione um dos modelos abaixo para carregar uma descrição em linguagem natural e gerar o diagrama automaticamente:</p>
+        <p style="color:var(--text-muted); margin-bottom:12px;">Selecione um dos modelos de código abaixo para carregar no editor:</p>
         <div class="preset-grid">
-          <div class="preset-card" data-preset="blocos">
-            <h4>Sintaxe de Blocos { }</h4>
-            <p>Formato compacto <code>aluno { *cpf, nome, matricula }</code> e relacionamentos <code>matricula (aluno N : N curso)</code>.</p>
+          <div class="preset-card" data-preset="eer">
+            <h4>1. Modelo EER Estendido Completo</h4>
+            <p>Entidades Fracas, Atributos Multivalorados, Derivados, Chaves Parciais e Herança (d, o, u).</p>
           </div>
           <div class="preset-card" data-preset="academico">
-            <h4>Sistema Acadêmico</h4>
-            <p>Alunos, Cursos, Professores, Disciplinas e Matrículas com cardinalidades N:N e 1:N.</p>
+            <h4>2. Sistema Acadêmico Completo</h4>
+            <p>Alunos, Cursos, Professores, Disciplinas com cardinalidades N:N e 1:N.</p>
           </div>
           <div class="preset-card" data-preset="loja">
-            <h4>Loja Virtual / E-commerce</h4>
-            <p>Clientes, Pedidos, Produtos e Categorias com atributos chave e relacionamentos de compra.</p>
+            <h4>3. Loja Virtual / E-commerce</h4>
+            <p>Clientes, Pedidos, Produtos e Categorias com chaves e relacionamentos.</p>
           </div>
           <div class="preset-card" data-preset="biblioteca">
-            <h4>Sistema de Biblioteca</h4>
-            <p>Leitores, Livros, Autores e Empréstimos com controle de datas e cópias.</p>
-          </div>
-          <div class="preset-card" data-preset="hospital">
-            <h4>Gestão Hospitalar</h4>
-            <p>Pacientes, Médicos, Consultas e Medicamentos com especialidades e leitos.</p>
+            <h4>4. Sistema de Biblioteca</h4>
+            <p>Leitores, Livros, Autores e Empréstimos em sintaxe de código ER.</p>
           </div>
         </div>
       </div>
