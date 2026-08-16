@@ -84,25 +84,50 @@ class StorageExportManager {
 
   // --- EXPORTAR SVG ---
   exportSVG(filename = 'diagrama_der.svg') {
-    const svgElement = document.getElementById('der-canvas');
+    const svgElement = document.getElementById('der-svg-canvas') || document.getElementById('der-canvas');
     if (!svgElement) return;
+
+    const viewportGroup = document.getElementById('viewport-group');
+    const bbox = viewportGroup ? viewportGroup.getBBox() : { x: 0, y: 0, width: 800, height: 600 };
+    const padding = 60;
+    const minW = Math.max(800, bbox.width + padding * 2);
+    const minH = Math.max(600, bbox.height + padding * 2);
+    const minX = bbox.width > 0 ? bbox.x - padding : 0;
+    const minY = bbox.height > 0 ? bbox.y - padding : 0;
 
     // Clonar nó SVG para exportação limpa
     const clone = svgElement.cloneNode(true);
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-    
-    // Remover grade de fundo dinâmica se desejar ou manter com estilos explicitados
+    clone.setAttribute('width', minW);
+    clone.setAttribute('height', minH);
+    clone.setAttribute('viewBox', `${minX} ${minY} ${minW} ${minH}`);
+
+    // Resetar transform de pan/zoom no clone
+    const cloneViewport = clone.querySelector('#viewport-group');
+    if (cloneViewport) {
+      cloneViewport.setAttribute('transform', 'translate(0, 0) scale(1)');
+    }
+
     const styleElement = document.createElement('style');
     styleElement.textContent = `
       .entity-rect { fill: #1e293b; stroke: #38bdf8; stroke-width: 2.5px; rx: 4px; }
+      .entity-rect.inner { fill: transparent; stroke: #38bdf8; stroke-width: 1.5px; rx: 3px; }
       .attribute-ellipse { fill: #0f172a; stroke: #34d399; stroke-width: 2px; }
+      .attribute-ellipse.inner { fill: transparent; stroke: #34d399; stroke-width: 1.5px; }
+      .attribute-ellipse.derived { stroke-dasharray: 5 4; }
       .relationship-polygon { fill: #311b92; stroke: #a78bfa; stroke-width: 2.5px; }
+      .relationship-polygon.inner { fill: transparent; stroke: #a78bfa; stroke-width: 1.5px; }
+      .specialization-circle { fill: #0f172a; stroke: #f43f5e; stroke-width: 2.5px; }
+      .specialization-text { font-family: monospace; font-size: 15px; font-weight: 700; fill: #f43f5e; text-anchor: middle; dominant-baseline: central; }
       .element-text { font-family: 'Inter', sans-serif; font-size: 13px; fill: #f8fafc; text-anchor: middle; dominant-baseline: central; }
       .entity-text { font-weight: 700; }
       .attribute-text.key-attribute { text-decoration: underline; font-weight: 700; fill: #34d399; }
+      .attribute-text.key-partial-attribute { text-decoration: underline dotted; font-weight: 700; fill: #a7f3d0; }
       .relationship-text { font-weight: 700; fill: #f3e8ff; }
       .connection-line { stroke: #64748b; stroke-width: 2px; }
-      .cardinality-badge { font-family: monospace; font-size: 12px; font-weight: 700; fill: #38bdf8; text-anchor: middle; }
+      .connection-line.total { stroke-width: 4px; }
+      .cardinality-badge { font-family: monospace; font-size: 12px; font-weight: 700; fill: #38bdf8; text-anchor: middle; dominant-baseline: central; }
+      .role-text { font-family: sans-serif; font-size: 10px; fill: #94a3b8; text-anchor: middle; }
     `;
     clone.prepend(styleElement);
 
@@ -113,18 +138,27 @@ class StorageExportManager {
 
   // --- EXPORTAR PNG ---
   exportPNG(filename = 'diagrama_der.png') {
-    const svgElement = document.getElementById('der-canvas');
+    const svgElement = document.getElementById('der-svg-canvas') || document.getElementById('der-canvas');
     if (!svgElement) return;
 
-    const bbox = document.getElementById('viewport-group').getBBox();
-    const padding = 50;
+    const viewportGroup = document.getElementById('viewport-group');
+    const bbox = viewportGroup ? viewportGroup.getBBox() : { x: 0, y: 0, width: 800, height: 600 };
+    const padding = 60;
     const width = Math.max(800, bbox.width + padding * 2);
     const height = Math.max(600, bbox.height + padding * 2);
+    const minX = bbox.width > 0 ? bbox.x - padding : 0;
+    const minY = bbox.height > 0 ? bbox.y - padding : 0;
 
     const clone = svgElement.cloneNode(true);
     clone.setAttribute('width', width);
     clone.setAttribute('height', height);
-    clone.setAttribute('viewBox', `${bbox.x - padding} ${bbox.y - padding} ${width} ${height}`);
+    clone.setAttribute('viewBox', `${minX} ${minY} ${width} ${height}`);
+
+    // Resetar transform no clone antes da conversão para imagem
+    const cloneViewport = clone.querySelector('#viewport-group');
+    if (cloneViewport) {
+      cloneViewport.setAttribute('transform', 'translate(0, 0) scale(1)');
+    }
 
     const svgData = new XMLSerializer().serializeToString(clone);
     const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });

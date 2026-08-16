@@ -8,10 +8,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const renderer = new CanvasRenderer(model);
   const handler = new InteractionHandler(model, renderer);
   const parser = new NLPParser(model);
-  const historyManager = new HistoryManager(model);
-  const validator = new DERValidator(model);
-  const storageManager = new StorageExportManager(model);
-  const propertyEditor = new PropertyEditor(model, renderer);
+  // Expor gerenciador de histórico globalmente para atalhos do InteractionHandler
+  window.appHistoryManager = historyManager;
 
   // Mapeamento de Elementos da Interface DOM
   const nlpInput = document.getElementById('nlp-input');
@@ -21,6 +19,28 @@ document.addEventListener('DOMContentLoaded', () => {
   const terminalLog = document.getElementById('terminal-log');
   const parsedSummary = document.getElementById('parsed-summary');
   const projectTitleInput = document.getElementById('project-title-input');
+
+  // Mapeamento de Abas Mobile
+  const tabCodeBtn = document.getElementById('tab-code-btn');
+  const tabCanvasBtn = document.getElementById('tab-canvas-btn');
+  const nlpPanelEl = document.getElementById('nlp-panel');
+  const canvasPanelEl = document.querySelector('.canvas-panel');
+
+  if (tabCodeBtn && tabCanvasBtn && nlpPanelEl && canvasPanelEl) {
+    tabCodeBtn.addEventListener('click', () => {
+      tabCodeBtn.classList.add('active');
+      tabCanvasBtn.classList.remove('active');
+      nlpPanelEl.classList.add('active');
+      canvasPanelEl.classList.remove('active');
+    });
+
+    tabCanvasBtn.addEventListener('click', () => {
+      tabCanvasBtn.classList.add('active');
+      tabCodeBtn.classList.remove('active');
+      canvasPanelEl.classList.add('active');
+      nlpPanelEl.classList.remove('active');
+    });
+  }
 
   // 2. Função de Atualização de Logs no Terminal
   function renderTerminalLog(logEntries) {
@@ -52,7 +72,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (!appendOnly) {
-      // Quando gerar o diagrama completo, ativa o modo SQL Console Incremental
       isDiagramGenerated = true;
       nlpInput.value = '';
       nlpInput.placeholder = `SQL Console Ativo — Digite comandos incrementais:
@@ -65,7 +84,6 @@ document.addEventListener('DOMContentLoaded', () => {
       parser.logEntries.push(sqlWelcome);
       renderTerminalLog(parser.logEntries);
     } else {
-      // Se for execução incremental, limpar o campo de texto após rodar o comando
       nlpInput.value = '';
     }
   }
@@ -79,23 +97,30 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Atalhos de teclado no Terminal:
-  // Hitting Enter on single-line command runs incremental execution automatically!
+  // Enter normal só executa se a linha começar com '>'; caso contrário insere quebra de linha normal.
   nlpInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      // Se tiver gerado o diagrama ou se for comando simples de 1 linha
-      if (isDiagramGenerated || !nlpInput.value.includes('\n')) {
+    if (e.key === 'Enter') {
+      if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
-        executeNLP(isDiagramGenerated);
+        executeNLP(false);
+      } else if (!e.shiftKey) {
+        const val = nlpInput.value.trim();
+        if (val.startsWith('>')) {
+          e.preventDefault();
+          executeNLP(true);
+        }
       }
-    } else if (e.ctrlKey && e.key === 'Enter') {
-      e.preventDefault();
-      executeNLP(false);
     }
   });
 
-  // 4. Carregar Preset Inicial (Sistema Acadêmico)
-  nlpInput.value = DERPresets.academico.text;
-  executeNLP(false);
+  // 4. Carregar Preset Inicial (Modelo EER Estendido Completo)
+  if (DERPresets && DERPresets.eer) {
+    nlpInput.value = DERPresets.eer.text;
+    executeNLP(false);
+  } else if (DERPresets && DERPresets.academico) {
+    nlpInput.value = DERPresets.academico.text;
+    executeNLP(false);
+  }
 
   // 5. Conectar Validador de Regras e Barra de Status
   function updateValidationStatus() {

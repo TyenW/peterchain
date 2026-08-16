@@ -149,32 +149,84 @@ class CanvasRenderer {
       this.elementsLayer.appendChild(g);
     });
 
-    // 2. Atributos (Elipses)
+    // 1. Entidades (Retângulos simples ou duplos)
+    this.model.entities.forEach(entity => {
+      const g = this.createGroup(entity.id, 'entity');
+      const isSelected = this.selectedElementId === entity.id;
+
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('x', entity.x - entity.width / 2);
+      rect.setAttribute('y', entity.y - entity.height / 2);
+      rect.setAttribute('width', entity.width);
+      rect.setAttribute('height', entity.height);
+      rect.setAttribute('class', 'entity-rect');
+
+      g.appendChild(rect);
+
+      // Entidade Fraca: Borda Dupla (Retângulo Interno)
+      if (entity.isWeak) {
+        const innerRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        innerRect.setAttribute('x', entity.x - entity.width / 2 + 4);
+        innerRect.setAttribute('y', entity.y - entity.height / 2 + 4);
+        innerRect.setAttribute('width', Math.max(10, entity.width - 8));
+        innerRect.setAttribute('height', Math.max(10, entity.height - 8));
+        innerRect.setAttribute('class', 'entity-rect inner');
+        g.appendChild(innerRect);
+      }
+
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.setAttribute('x', entity.x);
+      text.setAttribute('y', entity.y);
+      text.setAttribute('class', 'element-text entity-text');
+      text.textContent = entity.name;
+      g.appendChild(text);
+
+      if (isSelected) g.classList.add('selected');
+      this.elementsLayer.appendChild(g);
+    });
+
+    // 2. Atributos (Elipses simples, duplas ou tracejadas)
     this.model.attributes.forEach(attr => {
       const g = this.createGroup(attr.id, 'attribute');
       const isSelected = this.selectedElementId === attr.id;
 
+      const ellipseClass = `attribute-ellipse ${attr.isDerived ? 'derived' : ''}`;
       const ellipse = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
       ellipse.setAttribute('cx', attr.x);
       ellipse.setAttribute('cy', attr.y);
       ellipse.setAttribute('rx', attr.width / 2);
       ellipse.setAttribute('ry', attr.height / 2);
-      ellipse.setAttribute('class', 'attribute-ellipse');
+      ellipse.setAttribute('class', ellipseClass);
+      g.appendChild(ellipse);
+
+      // Atributo Multivalorado: Borda Dupla (Elipse Interna)
+      if (attr.isMultivalued) {
+        const innerEllipse = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+        innerEllipse.setAttribute('cx', attr.x);
+        innerEllipse.setAttribute('cy', attr.y);
+        innerEllipse.setAttribute('rx', Math.max(5, attr.width / 2 - 4));
+        innerEllipse.setAttribute('ry', Math.max(5, attr.height / 2 - 4));
+        innerEllipse.setAttribute('class', 'attribute-ellipse inner');
+        g.appendChild(innerEllipse);
+      }
+
+      // Estilo do texto (Chave Primária = Sublinhado Sólido, Chave Parcial = Sublinhado Tracejado)
+      let textClass = 'element-text attribute-text';
+      if (attr.isKey) textClass += ' key-attribute';
+      else if (attr.isPartialKey) textClass += ' key-partial-attribute';
 
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       text.setAttribute('x', attr.x);
       text.setAttribute('y', attr.y);
-      text.setAttribute('class', `element-text attribute-text ${attr.isKey ? 'key-attribute' : ''}`);
+      text.setAttribute('class', textClass);
       text.textContent = attr.name;
-
-      g.appendChild(ellipse);
       g.appendChild(text);
-      if (isSelected) g.classList.add('selected');
 
+      if (isSelected) g.classList.add('selected');
       this.elementsLayer.appendChild(g);
     });
 
-    // 3. Relacionamentos (Losangos / Rhombus)
+    // 3. Relacionamentos (Losangos simples ou duplos)
     this.model.relationships.forEach(rel => {
       const g = this.createGroup(rel.id, 'relationship');
       const isSelected = this.selectedElementId === rel.id;
@@ -188,19 +240,55 @@ class CanvasRenderer {
       const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
       polygon.setAttribute('points', points);
       polygon.setAttribute('class', 'relationship-polygon');
+      g.appendChild(polygon);
+
+      // Relacionamento Fraco / Identificador: Borda Dupla (Losango Interno)
+      if (rel.isWeak) {
+        const innerW = Math.max(10, halfW - 5);
+        const innerH = Math.max(10, halfH - 5);
+        const innerPoints = `${rel.x},${rel.y - innerH} ${rel.x + innerW},${rel.y} ${rel.x},${rel.y + innerH} ${rel.x - innerW},${rel.y}`;
+
+        const innerPoly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        innerPoly.setAttribute('points', innerPoints);
+        innerPoly.setAttribute('class', 'relationship-polygon inner');
+        g.appendChild(innerPoly);
+      }
 
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       text.setAttribute('x', rel.x);
       text.setAttribute('y', rel.y);
       text.setAttribute('class', 'element-text relationship-text');
       text.textContent = rel.name;
-
-      g.appendChild(polygon);
       g.appendChild(text);
-      if (isSelected) g.classList.add('selected');
 
+      if (isSelected) g.classList.add('selected');
       this.elementsLayer.appendChild(g);
     });
+
+    // 4. Especializações EER (Círculo intermediário d, o, u)
+    if (this.model.specializations) {
+      this.model.specializations.forEach(spec => {
+        const g = this.createGroup(spec.id, 'specialization');
+        const isSelected = this.selectedElementId === spec.id;
+
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', spec.x);
+        circle.setAttribute('cy', spec.y);
+        circle.setAttribute('r', 18);
+        circle.setAttribute('class', 'specialization-circle');
+        g.appendChild(circle);
+
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', spec.x);
+        text.setAttribute('y', spec.y);
+        text.setAttribute('class', 'element-text specialization-text');
+        text.textContent = (spec.specType || 'd').toUpperCase();
+        g.appendChild(text);
+
+        if (isSelected) g.classList.add('selected');
+        this.elementsLayer.appendChild(g);
+      });
+    }
   }
 
   createGroup(id, type) {
@@ -210,7 +298,7 @@ class CanvasRenderer {
     return g;
   }
 
-  // --- RENDERIZAR CONEXÕES E CARDINALIDADES ---
+  // --- RENDERIZAR CONEXÕES, LINHAS DUPLAS E CARDINALIDADES ---
   renderConnections() {
     this.model.connections.forEach(conn => {
       const source = this.model.getElementById(conn.sourceId);
@@ -224,12 +312,13 @@ class CanvasRenderer {
       const startPt = this.calculateEdgeIntersection(source, target);
       const endPt = this.calculateEdgeIntersection(target, source);
 
+      const lineClass = `connection-line ${conn.isTotal ? 'total' : ''} ${isSelected ? 'selected' : ''}`;
       const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
       line.setAttribute('x1', startPt.x);
       line.setAttribute('y1', startPt.y);
       line.setAttribute('x2', endPt.x);
       line.setAttribute('y2', endPt.y);
-      line.setAttribute('class', `connection-line ${isSelected ? 'selected' : ''}`);
+      line.setAttribute('class', lineClass);
       line.setAttribute('data-conn-id', conn.id);
 
       this.connectionsLayer.appendChild(line);
@@ -241,11 +330,18 @@ class CanvasRenderer {
       if (conn.cardinalityTarget) {
         this.renderCardinalityBadge(conn.cardinalityTarget, startPt, endPt, 0.75);
       }
+
+      // Renderizar rótulos de Papel (Role names) nas conexões se definidos
+      if (conn.roleSource) {
+        this.renderRoleLabel(conn.roleSource, startPt, endPt, 0.35);
+      }
+      if (conn.roleTarget) {
+        this.renderRoleLabel(conn.roleTarget, startPt, endPt, 0.65);
+      }
     });
   }
 
   renderCardinalityBadge(label, startPt, endPt, t) {
-    // Ponto interpolado ao longo da linha
     const x = startPt.x + (endPt.x - startPt.x) * t;
     const y = startPt.y + (endPt.y - startPt.y) * t;
 
@@ -272,20 +368,48 @@ class CanvasRenderer {
     this.labelsLayer.appendChild(g);
   }
 
-  // --- CÁLCULO DE INTERSEÇÃO DE BORDAS DAS FORMAS ---
+  renderRoleLabel(roleText, startPt, endPt, t) {
+    const x = startPt.x + (endPt.x - startPt.x) * t;
+    const y = startPt.y + (endPt.y - startPt.y) * t - 10;
+
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', x);
+    text.setAttribute('y', y);
+    text.setAttribute('class', 'role-text');
+    text.textContent = `[${roleText}]`;
+    this.labelsLayer.appendChild(text);
+  }
+
+  // --- CÁLCULO DE INTERSEÇÃO DE BORDAS DAS FORMAS (ROBUSTO E SEM NaN) ---
   calculateEdgeIntersection(elem, target) {
     const dx = target.x - elem.x;
     const dy = target.y - elem.y;
+
+    // Casos particulares quando dx === 0 ou dy === 0
+    if (Math.abs(dx) < 0.001 && Math.abs(dy) < 0.001) {
+      return { x: elem.x, y: elem.y };
+    }
+    if (Math.abs(dx) < 0.001) {
+      const signY = Math.sign(dy) || 1;
+      const h = (elem.height || 40) / 2;
+      return { x: elem.x, y: elem.y + signY * h };
+    }
+    if (Math.abs(dy) < 0.001) {
+      const signX = Math.sign(dx) || 1;
+      const w = (elem.width || 80) / 2;
+      return { x: elem.x + signX * w, y: elem.y };
+    }
+
     const angle = Math.atan2(dy, dx);
+    const absCos = Math.abs(Math.cos(angle));
+    const absSin = Math.abs(Math.sin(angle));
 
     if (elem.type === 'entity') {
-      // Retângulo
       const w = elem.width / 2;
       const h = elem.height / 2;
-      const tanTheta = Math.abs(Math.tan(angle));
 
       let x, y;
-      if (tanTheta * w <= h) {
+      if (absSin * w <= absCos * h) {
         x = Math.sign(dx) * w;
         y = Math.sign(dx) * w * Math.tan(angle);
       } else {
@@ -294,22 +418,25 @@ class CanvasRenderer {
       }
       return { x: elem.x + x, y: elem.y + y };
     } else if (elem.type === 'attribute') {
-      // Elipse
       const rx = elem.width / 2;
       const ry = elem.height / 2;
-      const x = (rx * ry) / Math.sqrt(ry * ry + rx * rx * Math.tan(angle) * Math.tan(angle));
-      const y = x * Math.tan(angle);
+      const tanA = Math.tan(angle);
+      const x = (rx * ry) / Math.sqrt(ry * ry + rx * rx * tanA * tanA);
+      const y = x * tanA;
       return {
         x: elem.x + Math.sign(dx) * Math.abs(x),
         y: elem.y + Math.sign(dy) * Math.abs(y)
       };
     } else if (elem.type === 'relationship') {
-      // Losango (Rhombus)
       const a = elem.width / 2;
       const b = elem.height / 2;
-      const absCos = Math.abs(Math.cos(angle));
-      const absSin = Math.abs(Math.sin(angle));
       const r = (a * b) / (b * absCos + a * absSin);
+      return {
+        x: elem.x + r * Math.cos(angle),
+        y: elem.y + r * Math.sin(angle)
+      };
+    } else if (elem.type === 'specialization') {
+      const r = 18;
       return {
         x: elem.x + r * Math.cos(angle),
         y: elem.y + r * Math.sin(angle)

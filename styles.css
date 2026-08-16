@@ -623,6 +623,13 @@ a {
   rx: 4px;
 }
 
+.entity-rect.inner {
+  fill: transparent;
+  stroke: var(--entity-stroke);
+  stroke-width: 1.5;
+  rx: 3px;
+}
+
 .der-element.selected .entity-rect {
   stroke: #38bdf8;
   stroke-width: 3.5;
@@ -633,6 +640,16 @@ a {
   fill: var(--attribute-fill);
   stroke: var(--attribute-stroke);
   stroke-width: 2;
+}
+
+.attribute-ellipse.inner {
+  fill: transparent;
+  stroke: var(--attribute-stroke);
+  stroke-width: 1.5;
+}
+
+.attribute-ellipse.derived {
+  stroke-dasharray: 5 4;
 }
 
 .der-element.selected .attribute-ellipse {
@@ -647,9 +664,34 @@ a {
   stroke-width: 2.5;
 }
 
+.relationship-polygon.inner {
+  fill: transparent;
+  stroke: var(--relationship-stroke);
+  stroke-width: 1.5;
+}
+
 .der-element.selected .relationship-polygon {
   stroke: #38bdf8;
   stroke-width: 3.5;
+}
+
+/* EER Specialization Shape (Circle d, o, u) */
+.specialization-circle {
+  fill: #0f172a;
+  stroke: #f43f5e;
+  stroke-width: 2.5;
+}
+
+.der-element.selected .specialization-circle {
+  stroke: #fb7185;
+  stroke-width: 3.5;
+}
+
+.specialization-text {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 700;
+  fill: #f43f5e;
 }
 
 /* Text Labels Inside Elements */
@@ -674,10 +716,24 @@ a {
   fill: #34d399;
 }
 
+.attribute-text.key-partial-attribute {
+  text-decoration: underline dotted;
+  font-weight: 700;
+  fill: #a7f3d0;
+}
+
 .relationship-text {
   font-weight: 700;
   fill: #f3e8ff;
   letter-spacing: 0.05em;
+}
+
+.role-text {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 500;
+  fill: #94a3b8;
+  text-anchor: middle;
 }
 
 /* Connector Lines */
@@ -686,6 +742,11 @@ a {
   stroke-width: 2;
   stroke-linecap: round;
   transition: stroke var(--transition-fast);
+}
+
+.connection-line.total {
+  stroke-width: 4;
+  stroke-dasharray: none;
 }
 
 .connection-line:hover {

@@ -49,19 +49,16 @@ class InteractionHandler {
   }
 
   initEventListeners() {
-    // --- MOUSE DOWN ---
-    this.svg.addEventListener('mousedown', (e) => this.handleMouseDown(e));
-
-    // --- MOUSE MOVE ---
-    window.addEventListener('mousemove', (e) => this.handleMouseMove(e));
-
-    // --- MOUSE UP ---
-    window.addEventListener('mouseup', (e) => this.handleMouseUp(e));
+    // --- EVENTOS DE PONTEIRO (SUPORTE A MOUSE E TOUCH) ---
+    this.svg.addEventListener('pointerdown', (e) => this.handleMouseDown(e));
+    window.addEventListener('pointermove', (e) => this.handleMouseMove(e));
+    window.addEventListener('pointerup', (e) => this.handleMouseUp(e));
+    window.addEventListener('pointercancel', (e) => this.handleMouseUp(e));
 
     // --- MOUSE WHEEL (ZOOM) ---
     this.svg.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
 
-    // --- TECLAS ATALHO (SPACEBAR, DELETE, UNDO, REDO) ---
+    // --- TECLAS ATALHO (SPACEBAR, DELETE, CTRL+Z UNDO, CTRL+Y REDO) ---
     window.addEventListener('keydown', (e) => this.handleKeyDown(e));
     window.addEventListener('keyup', (e) => this.handleKeyUp(e));
   }
@@ -76,7 +73,7 @@ class InteractionHandler {
       return;
     }
 
-    if (e.button !== 0) return; // Apenas clique esquerdo
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
 
     const canvasCoords = this.renderer.screenToCanvasCoordinates(e.clientX, e.clientY);
     const targetElementG = e.target.closest('.der-element');
@@ -90,15 +87,16 @@ class InteractionHandler {
 
         this.isDraggingElement = true;
         this.draggedElement = this.model.getElementById(id);
-        this.dragStartPos = canvasCoords;
-        this.elementStartPos = { x: this.draggedElement.x, y: this.draggedElement.y };
+        if (this.draggedElement) {
+          this.dragStartPos = canvasCoords;
+          this.elementStartPos = { x: this.draggedElement.x, y: this.draggedElement.y };
+        }
       } else if (targetConnLine) {
         const connId = targetConnLine.getAttribute('data-conn-id');
         this.renderer.selectConnection(connId);
       } else {
         // Clicou no fundo do canvas
         this.renderer.clearSelection();
-        // Iniciar Pan do canvas se clicar no fundo limpo
         this.isPanningCanvas = true;
         this.panStartPos = { x: e.clientX, y: e.clientY };
         this.container.classList.add('panning');
@@ -109,7 +107,8 @@ class InteractionHandler {
     else if (this.activeTool === 'entity') {
       const name = prompt('Nome da nova Entidade:', 'ENTIDADE');
       if (name && name.trim()) {
-        const entity = this.model.addEntity(name, canvasCoords.x, canvasCoords.y);
+        const res = this.model.addEntity(name, canvasCoords.x, canvasCoords.y);
+        const entity = res.element || res;
         this.renderer.selectElement(entity.id);
         this.setTool('select');
       }
@@ -133,24 +132,35 @@ class InteractionHandler {
     else if (this.activeTool === 'relationship') {
       const name = prompt('Nome do novo Relacionamento:', 'RELACIONA');
       if (name && name.trim()) {
-        const rel = this.model.addRelationship(name, canvasCoords.x, canvasCoords.y);
+        const res = this.model.addRelationship(name, canvasCoords.x, canvasCoords.y);
+        const rel = res.element || res;
         this.renderer.selectElement(rel.id);
         this.setTool('select');
       }
     }
 
-    // --- FERRAMENTA CONECTAR ---
+    // --- FERRAMENTA CONECTAR COM VALIDAÇÃO SEMÂNTICA ---
     else if (this.activeTool === 'connect') {
       if (targetElementG) {
         const id = targetElementG.getAttribute('data-id');
         if (!this.connectSourceId) {
-          // Primeiro elemento selecionado
           this.connectSourceId = id;
           this.showConnectionHint(true);
         } else {
-          // Segundo elemento selecionado -> Conectar
           if (this.connectSourceId !== id) {
-            this.model.addConnection(this.connectSourceId, id);
+            const src = this.model.getElementById(this.connectSourceId);
+            const tgt = this.model.getElementById(id);
+
+            // Validação semântica das conexões na notação de Chen
+            if (src && tgt) {
+              if (src.type === 'entity' && tgt.type === 'entity') {
+                alert('Na notação de Peter Chen, Entidades não se conectam diretamente. Crie um Relacionamento (Losango) entre elas.');
+              } else if (src.type === 'attribute' && tgt.type === 'attribute') {
+                alert('Atributos se conectam a Entidades ou Relacionamentos, não diretamente a outros atributos.');
+              } else {
+                this.model.addConnection(this.connectSourceId, id);
+              }
+            }
           }
           this.cancelConnection();
           this.setTool('select');
@@ -173,7 +183,6 @@ class InteractionHandler {
   }
 
   handleMouseMove(e) {
-    // 1. Arrastar elemento no canvas
     if (this.isDraggingElement && this.draggedElement) {
       const canvasCoords = this.renderer.screenToCanvasCoordinates(e.clientX, e.clientY);
       const dx = canvasCoords.x - this.dragStartPos.x;
@@ -186,7 +195,6 @@ class InteractionHandler {
       return;
     }
 
-    // 2. Pan do Canvas
     if (this.isPanningCanvas) {
       const dx = e.clientX - this.panStartPos.x;
       const dy = e.clientY - this.panStartPos.y;
@@ -197,6 +205,13 @@ class InteractionHandler {
   }
 
   handleMouseUp(e) {
+    // Se um elemento foi arrastado e mudou de posição, notificar o modelo UMA ÚNICA VEZ para gravar snapshot de Undo
+    if (this.isDraggingElement && this.draggedElement) {
+      if (this.draggedElement.x !== this.elementStartPos.x || this.draggedElement.y !== this.elementStartPos.y) {
+        this.model.notify();
+      }
+    }
+
     this.isDraggingElement = false;
     this.draggedElement = null;
 
@@ -230,7 +245,25 @@ class InteractionHandler {
   }
 
   handleKeyDown(e) {
-    // Ignorar atalhos se o foco estiver num input ou textarea
+    // Atalhos globais Ctrl+Z / Ctrl+Y (mesmo com foco fora de inputs)
+    if (e.ctrlKey || e.metaKey) {
+      const key = e.key.toLowerCase();
+      if (key === 'z') {
+        if (e.shiftKey) {
+          if (window.appHistoryManager) window.appHistoryManager.redo();
+        } else {
+          if (window.appHistoryManager) window.appHistoryManager.undo();
+        }
+        e.preventDefault();
+        return;
+      } else if (key === 'y') {
+        if (window.appHistoryManager) window.appHistoryManager.redo();
+        e.preventDefault();
+        return;
+      }
+    }
+
+    // Ignorar outros atalhos simples se o foco estiver num input ou textarea
     if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
 
     if (e.code === 'Space' && !this.spacePressed) {

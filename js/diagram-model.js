@@ -1,12 +1,13 @@
 /**
- * DER Builder — Modelo Lógico de Dados do Diagrama ER (Peter Chen)
+ * DER Builder — Modelo Lógico de Dados do Diagrama ER / EER (Peter Chen)
  */
 class DiagramModel {
   constructor() {
-    this.entities = [];      // { id, name, type: 'entity', x, y, width, height }
-    this.attributes = [];    // { id, name, type: 'attribute', parentId, isKey, x, y, width, height }
-    this.relationships = []; // { id, name, type: 'relationship', x, y, width, height }
-    this.connections = [];   // { id, sourceId, targetId, cardinalitySource: '1'|'N', cardinalityTarget: '1'|'N' }
+    this.entities = [];       // { id, name, type: 'entity', isWeak, x, y, width, height }
+    this.attributes = [];     // { id, name, type: 'attribute', parentId, isKey, isPartialKey, isMultivalued, isDerived, x, y, width, height }
+    this.relationships = [];  // { id, name, type: 'relationship', isWeak, x, y, width, height }
+    this.specializations = [];// { id, type: 'specialization', specType: 'd'|'o'|'u', superEntityId, subEntityIds: [], x, y, width: 36, height: 36 }
+    this.connections = [];    // { id, sourceId, targetId, cardinalitySource, cardinalityTarget, isTotal, roleSource, roleTarget }
     this.listeners = [];
   }
 
@@ -19,40 +20,70 @@ class DiagramModel {
   }
 
   generateId(prefix = 'elem') {
-    return `${prefix}_${Math.random().toString(36).substr(2, 9)}`;
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return `${prefix}_${crypto.randomUUID().slice(0, 8)}`;
+    }
+    return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+  }
+
+  // Dimensionamento centralizado e reutilizável de elementos
+  calculateDimensions(type, name = '') {
+    const len = name ? name.trim().length : 0;
+    if (type === 'entity') {
+      return { width: Math.max(120, len * 10 + 30), height: 50 };
+    }
+    if (type === 'attribute') {
+      return { width: Math.max(90, len * 8 + 24), height: 40 };
+    }
+    if (type === 'relationship') {
+      return { width: Math.max(110, len * 10 + 40), height: 65 };
+    }
+    if (type === 'specialization') {
+      return { width: 36, height: 36 };
+    }
+    return { width: 100, height: 50 };
   }
 
   clear() {
     this.entities = [];
     this.attributes = [];
     this.relationships = [];
+    this.specializations = [];
     this.connections = [];
     this.notify();
   }
 
   // --- ENTIDADES ---
-  addEntity(name, x = 200, y = 200) {
+  addEntity(name, x = 200, y = 200, isWeak = false) {
     const formattedName = name.trim().toUpperCase();
     let existing = this.entities.find(e => e.name === formattedName);
-    if (existing) return existing;
+    if (existing) {
+      if (isWeak) existing.isWeak = true;
+      this.notify();
+      return { element: existing, created: false };
+    }
 
+    const dims = this.calculateDimensions('entity', formattedName);
     const entity = {
       id: this.generateId('entity'),
       name: formattedName,
       type: 'entity',
+      isWeak: Boolean(isWeak),
       x,
       y,
-      width: Math.max(120, formattedName.length * 10 + 30),
-      height: 50
+      width: dims.width,
+      height: dims.height
     };
 
     this.entities.push(entity);
     this.notify();
-    return entity;
+    return { element: entity, created: true };
   }
 
   // --- ATRIBUTOS ---
-  addAttribute(name, parentId = null, isKey = false, x = 0, y = 0) {
+  addAttribute(name, parentId = null, options = {}, x = 0, y = 0) {
+    // Acepta booleano (para retrocompatibilidade com isKey) ou objeto options
+    const opts = typeof options === 'boolean' ? { isKey: options } : (options || {});
     const formattedName = name.trim();
     if (!formattedName) return null;
 
@@ -60,22 +91,29 @@ class DiagramModel {
     if (parentId) {
       const dup = this.attributes.find(a => a.parentId === parentId && a.name.toLowerCase() === formattedName.toLowerCase());
       if (dup) {
-        if (isKey) dup.isKey = true;
+        if (opts.isKey) dup.isKey = true;
+        if (opts.isPartialKey) dup.isPartialKey = true;
+        if (opts.isMultivalued) dup.isMultivalued = true;
+        if (opts.isDerived) dup.isDerived = true;
         this.notify();
         return dup;
       }
     }
 
+    const dims = this.calculateDimensions('attribute', formattedName);
     const attribute = {
       id: this.generateId('attr'),
       name: formattedName,
       type: 'attribute',
       parentId: parentId,
-      isKey: Boolean(isKey),
+      isKey: Boolean(opts.isKey),
+      isPartialKey: Boolean(opts.isPartialKey),
+      isMultivalued: Boolean(opts.isMultivalued),
+      isDerived: Boolean(opts.isDerived),
       x,
       y,
-      width: Math.max(90, formattedName.length * 8 + 24),
-      height: 40
+      width: dims.width,
+      height: dims.height
     };
 
     this.attributes.push(attribute);
@@ -90,29 +128,69 @@ class DiagramModel {
   }
 
   // --- RELACIONAMENTOS ---
-  addRelationship(name, x = 400, y = 200) {
+  addRelationship(name, x = 400, y = 200, isWeak = false) {
     const formattedName = name.trim().toUpperCase();
     let existing = this.relationships.find(r => r.name === formattedName);
-    if (existing) return existing;
+    if (existing) {
+      if (isWeak) existing.isWeak = true;
+      this.notify();
+      return { element: existing, created: false };
+    }
 
+    const dims = this.calculateDimensions('relationship', formattedName);
     const relationship = {
       id: this.generateId('rel'),
       name: formattedName,
       type: 'relationship',
+      isWeak: Boolean(isWeak),
       x,
       y,
-      width: Math.max(110, formattedName.length * 10 + 40),
-      height: 65
+      width: dims.width,
+      height: dims.height
     };
 
     this.relationships.push(relationship);
     this.notify();
-    return relationship;
+    return { element: relationship, created: true };
+  }
+
+  // --- ESPECIALIZAÇÕES EER (d, o, u) ---
+  addSpecialization(specType = 'd', superEntityId, subEntityIds = [], x = 300, y = 300) {
+    const validTypes = ['d', 'o', 'u'];
+    const type = validTypes.includes(specType.toLowerCase()) ? specType.toLowerCase() : 'd';
+
+    const spec = {
+      id: this.generateId('spec'),
+      name: type.toUpperCase(),
+      type: 'specialization',
+      specType: type,
+      superEntityId,
+      subEntityIds,
+      x,
+      y,
+      width: 36,
+      height: 36
+    };
+
+    this.specializations.push(spec);
+
+    // Conectar super-entidade e sub-entidades automaticamente
+    if (superEntityId) {
+      this.addConnection(superEntityId, spec.id);
+    }
+    subEntityIds.forEach(subId => {
+      this.addConnection(spec.id, subId);
+    });
+
+    this.notify();
+    return spec;
   }
 
   // --- CONEXÕES ---
-  addConnection(sourceId, targetId, cardinalitySource = '', cardinalityTarget = '') {
+  addConnection(sourceId, targetId, cardinalitySource = '', cardinalityTarget = '', options = {}) {
     if (!sourceId || !targetId || sourceId === targetId) return null;
+
+    const opts = typeof options === 'boolean' ? { isTotal: options } : (options || {});
 
     // Verificar se já existe conexão entre os dois elementos
     const existing = this.connections.find(
@@ -123,6 +201,9 @@ class DiagramModel {
     if (existing) {
       if (cardinalitySource) existing.cardinalitySource = cardinalitySource;
       if (cardinalityTarget) existing.cardinalityTarget = cardinalityTarget;
+      if (opts.isTotal !== undefined) existing.isTotal = Boolean(opts.isTotal);
+      if (opts.roleSource) existing.roleSource = opts.roleSource;
+      if (opts.roleTarget) existing.roleTarget = opts.roleTarget;
       this.notify();
       return existing;
     }
@@ -132,7 +213,10 @@ class DiagramModel {
       sourceId,
       targetId,
       cardinalitySource,
-      cardinalityTarget
+      cardinalityTarget,
+      isTotal: Boolean(opts.isTotal),
+      roleSource: opts.roleSource || '',
+      roleTarget: opts.roleTarget || ''
     };
 
     this.connections.push(conn);
@@ -145,11 +229,12 @@ class DiagramModel {
     this.entities = this.entities.filter(e => e.id !== id);
     this.attributes = this.attributes.filter(a => a.id !== id);
     this.relationships = this.relationships.filter(r => r.id !== id);
+    this.specializations = this.specializations.filter(s => s.id !== id);
     
     // Remover conexões vinculadas ao elemento
     this.connections = this.connections.filter(c => c.sourceId !== id && c.targetId !== id);
     
-    // Desvincular atributos se a entidade pai foi removida
+    // Desvincular atributos se o pai foi removido
     this.attributes.forEach(a => {
       if (a.parentId === id) a.parentId = null;
     });
@@ -162,11 +247,12 @@ class DiagramModel {
     this.notify();
   }
 
-  // --- BUSCA E BUSCA POR NOME ---
+  // --- BUSCA ---
   getElementById(id) {
     return this.entities.find(e => e.id === id) ||
            this.attributes.find(a => a.id === id) ||
-           this.relationships.find(r => r.id === id);
+           this.relationships.find(r => r.id === id) ||
+           this.specializations.find(s => s.id === id);
   }
 
   findEntityByName(name) {
@@ -180,7 +266,7 @@ class DiagramModel {
   }
 
   getAllElements() {
-    return [...this.entities, ...this.attributes, ...this.relationships];
+    return [...this.entities, ...this.attributes, ...this.relationships, ...this.specializations];
   }
 
   // --- ARRANJO AUTOMÁTICO DE LAYOUT (AUTO-LAYOUT) ---
@@ -189,12 +275,12 @@ class DiagramModel {
 
     const startX = 300;
     const startY = 300;
-    const entitySpacingX = 320;
-    const entitySpacingY = 280;
+    const entitySpacingX = 340;
+    const entitySpacingY = 300;
 
     const cols = Math.ceil(Math.sqrt(this.entities.length));
     
-    // Posicionar Entidades numa Grade Organizada
+    // 1. Posicionar Entidades numa Grade Organizada
     this.entities.forEach((entity, index) => {
       const col = index % cols;
       const row = Math.floor(index / cols);
@@ -204,20 +290,19 @@ class DiagramModel {
       // Distribuir os atributos ao redor da entidade em órbita radial
       const entityAttrs = this.attributes.filter(a => a.parentId === entity.id);
       if (entityAttrs.length > 0) {
-        const radius = 130;
+        const radius = 140;
         const angleStep = (2 * Math.PI) / entityAttrs.length;
-        // Iniciar ângulo apontando para cima/esquerda
         const startAngle = -Math.PI / 2;
 
         entityAttrs.forEach((attr, aIdx) => {
           const angle = startAngle + aIdx * angleStep;
-          attr.x = entity.x + radius * Math.cos(angle);
-          attr.y = entity.y + radius * Math.sin(angle);
+          attr.x = Math.round(entity.x + radius * Math.cos(angle));
+          attr.y = Math.round(entity.y + radius * Math.sin(angle));
         });
       }
     });
 
-    // Posicionar Relacionamentos no ponto médio das entidades que conectam
+    // 2. Posicionar Relacionamentos no ponto médio das entidades que conectam
     this.relationships.forEach((rel, rIdx) => {
       const relConns = this.connections.filter(c => c.sourceId === rel.id || c.targetId === rel.id);
       const connectedEntities = relConns.map(c => {
@@ -226,35 +311,48 @@ class DiagramModel {
       }).filter(Boolean);
 
       if (connectedEntities.length >= 2) {
-        // Ponto médio das entidades conectadas
         const avgX = connectedEntities.reduce((sum, e) => sum + e.x, 0) / connectedEntities.length;
         const avgY = connectedEntities.reduce((sum, e) => sum + e.y, 0) / connectedEntities.length;
-        rel.x = avgX;
-        rel.y = avgY;
+        rel.x = Math.round(avgX);
+        rel.y = Math.round(avgY);
       } else if (connectedEntities.length === 1) {
-        // Ao lado da única entidade conectada
-        rel.x = connectedEntities[0].x + 180;
+        rel.x = connectedEntities[0].x + 190;
         rel.y = connectedEntities[0].y;
       } else {
-        // Posição padrão
         rel.x = startX + rIdx * 200;
         rel.y = startY + 400;
       }
 
-      // Distribuir atributos do relacionamento se houver
+      // Atributos do relacionamento
       const relAttrs = this.attributes.filter(a => a.parentId === rel.id);
       if (relAttrs.length > 0) {
         const radius = 110;
         const angleStep = (2 * Math.PI) / relAttrs.length;
         relAttrs.forEach((attr, aIdx) => {
           const angle = aIdx * angleStep;
-          attr.x = rel.x + radius * Math.cos(angle);
-          attr.y = rel.y + radius * Math.sin(angle);
+          attr.x = Math.round(rel.x + radius * Math.cos(angle));
+          attr.y = Math.round(rel.y + radius * Math.sin(angle));
         });
       }
     });
 
-    // Atributos órfãos (sem pai)
+    // 3. Posicionar Especializações EER entre a super-entidade e sub-entidades
+    this.specializations.forEach((spec, sIdx) => {
+      const superEnt = this.entities.find(e => e.id === spec.superEntityId);
+      const subEnts = spec.subEntityIds.map(id => this.entities.find(e => e.id === id)).filter(Boolean);
+
+      if (superEnt && subEnts.length > 0) {
+        const avgSubX = subEnts.reduce((sum, e) => sum + e.x, 0) / subEnts.length;
+        const avgSubY = subEnts.reduce((sum, e) => sum + e.y, 0) / subEnts.length;
+        spec.x = Math.round((superEnt.x + avgSubX) / 2);
+        spec.y = Math.round((superEnt.y + avgSubY) / 2);
+      } else if (superEnt) {
+        spec.x = superEnt.x;
+        spec.y = superEnt.y + 120;
+      }
+    });
+
+    // 4. Atributos órfãos (sem pai)
     const orphanAttrs = this.attributes.filter(a => !a.parentId);
     orphanAttrs.forEach((attr, idx) => {
       attr.x = 100;
@@ -270,6 +368,7 @@ class DiagramModel {
       entities: this.entities,
       attributes: this.attributes,
       relationships: this.relationships,
+      specializations: this.specializations,
       connections: this.connections
     };
   }
@@ -279,6 +378,7 @@ class DiagramModel {
     this.entities = data.entities || [];
     this.attributes = data.attributes || [];
     this.relationships = data.relationships || [];
+    this.specializations = data.specializations || [];
     this.connections = data.connections || [];
     this.notify();
   }
