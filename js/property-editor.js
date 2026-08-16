@@ -208,6 +208,28 @@ class PropertyEditor {
     this.titleEl.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 3 22 12 12 21 2 12"/></svg> Relacionamento`;
 
     const relConns = this.model.connections.filter(c => c.sourceId === rel.id || c.targetId === rel.id);
+    const participantConns = relConns
+      .map(conn => {
+        const otherId = conn.sourceId === rel.id ? conn.targetId : conn.sourceId;
+        const entity = this.model.entities.find(e => e.id === otherId);
+        if (!entity) return null;
+
+        const entityIsSource = conn.sourceId === entity.id;
+        const cardVal = entityIsSource ? (conn.cardinalitySource || '') : (conn.cardinalityTarget || '');
+        const roleVal = entityIsSource ? (conn.roleSource || '') : (conn.roleTarget || '');
+        const totalVal = entityIsSource
+          ? (conn.isTotalSource !== undefined ? Boolean(conn.isTotalSource) : Boolean(conn.isTotal))
+          : (conn.isTotalTarget !== undefined ? Boolean(conn.isTotalTarget) : Boolean(conn.isTotal));
+
+        return { conn, entity, entityIsSource, cardVal, roleVal, totalVal };
+      })
+      .filter(Boolean);
+
+    const connectedIds = new Set(participantConns.map(item => item.entity.id));
+    const availableEntities = this.model.entities.filter(e => !connectedIds.has(e.id));
+    const addEntityOptions = availableEntities
+      .map(e => `<option value="${e.id}">${this.escapeHtml(e.name)}</option>`)
+      .join('');
 
     const html = `
       <div class="form-group">
@@ -223,23 +245,42 @@ class PropertyEditor {
       </div>
 
       <div class="form-group">
-        <label>Cardinalidades Conectadas</label>
-        ${relConns.length === 0 ? '<p style="font-size:11px; color:#64748b;">Nenhuma entidade conectada. Use a ferramenta Conectar.</p>' : ''}
-        ${relConns.map((conn) => {
-          const otherId = conn.sourceId === rel.id ? conn.targetId : conn.sourceId;
-          const otherElem = this.model.getElementById(otherId);
-          const cardVal = conn.sourceId === rel.id ? conn.cardinalityTarget : conn.cardinalitySource;
-          return `
+        <label>Participantes do Relacionamento</label>
+        ${participantConns.length === 0 ? '<p style="font-size:11px; color:#64748b;">Nenhuma entidade conectada.</p>' : ''}
+        ${participantConns.map((item) => `
+          <div style="border:1px solid #334155; border-radius:8px; padding:8px; margin-bottom:8px;">
             <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:6px;">
-              <span style="font-size:12px; flex:1;">${otherElem ? this.escapeHtml(otherElem.name) : 'Elemento'}</span>
-              <select class="prop-rel-card" data-conn-id="${conn.id}" data-is-source="${conn.sourceId === rel.id}" style="width:70px;">
-                <option value="1" ${cardVal === '1' ? 'selected' : ''}>1</option>
-                <option value="N" ${cardVal === 'N' ? 'selected' : ''}>N</option>
-                <option value="M" ${cardVal === 'M' ? 'selected' : ''}>M</option>
-              </select>
+              <span style="font-size:12px; font-weight:600; color:#38bdf8;">${this.escapeHtml(item.entity.name)}</span>
+              <button class="btn btn-secondary danger prop-rel-remove" data-conn-id="${item.conn.id}" style="padding:4px 8px; font-size:11px;">Remover</button>
             </div>
-          `;
-        }).join('')}
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-bottom:6px;">
+              <select class="prop-rel-card" data-conn-id="${item.conn.id}" data-entity-source="${item.entityIsSource}" title="Cardinalidade">
+                <option value="">-- Cardinalidade --</option>
+                <option value="1" ${item.cardVal === '1' ? 'selected' : ''}>1</option>
+                <option value="N" ${item.cardVal === 'N' ? 'selected' : ''}>N</option>
+                <option value="M" ${item.cardVal === 'M' ? 'selected' : ''}>M</option>
+              </select>
+              <input type="text" class="prop-rel-role" data-conn-id="${item.conn.id}" data-entity-source="${item.entityIsSource}" placeholder="Papel (ex.: supervisor)" value="${this.escapeHtml(item.roleVal)}">
+            </div>
+
+            <label class="checkbox-label" style="margin:0;">
+              <input type="checkbox" class="prop-rel-total" data-conn-id="${item.conn.id}" data-entity-source="${item.entityIsSource}" ${item.totalVal ? 'checked' : ''}>
+              <span>Participação Total em ${this.escapeHtml(item.entity.name)}</span>
+            </label>
+          </div>
+        `).join('')}
+      </div>
+
+      <div class="form-group">
+        <label>Adicionar Participante</label>
+        <div style="display:flex; gap:6px;">
+          <select id="prop-add-entity" style="flex:1;" ${availableEntities.length === 0 ? 'disabled' : ''}>
+            <option value="">-- Selecionar entidade --</option>
+            ${addEntityOptions}
+          </select>
+          <button id="prop-btn-add-entity" class="btn btn-secondary" ${availableEntities.length === 0 ? 'disabled' : ''}>Adicionar</button>
+        </div>
       </div>
 
       <div class="form-group" style="margin-top: 10px;">
@@ -262,15 +303,63 @@ class PropertyEditor {
     document.querySelectorAll('.prop-rel-card').forEach(select => {
       select.addEventListener('change', (e) => {
         const connId = e.target.getAttribute('data-conn-id');
-        const isSource = e.target.getAttribute('data-is-source') === 'true';
+        const entityIsSource = e.target.getAttribute('data-entity-source') === 'true';
         const conn = this.model.connections.find(c => c.id === connId);
-        if (conn) {
-          if (isSource) conn.cardinalityTarget = e.target.value;
-          else conn.cardinalitySource = e.target.value;
-          this.model.notify();
-        }
+        if (!conn) return;
+
+        if (entityIsSource) conn.cardinalitySource = e.target.value;
+        else conn.cardinalityTarget = e.target.value;
+        this.model.notify();
       });
     });
+
+    document.querySelectorAll('.prop-rel-role').forEach(input => {
+      input.addEventListener('change', (e) => {
+        const connId = e.target.getAttribute('data-conn-id');
+        const entityIsSource = e.target.getAttribute('data-entity-source') === 'true';
+        const conn = this.model.connections.find(c => c.id === connId);
+        if (!conn) return;
+
+        if (entityIsSource) conn.roleSource = e.target.value;
+        else conn.roleTarget = e.target.value;
+        this.model.notify();
+      });
+    });
+
+    document.querySelectorAll('.prop-rel-total').forEach(check => {
+      check.addEventListener('change', (e) => {
+        const connId = e.target.getAttribute('data-conn-id');
+        const entityIsSource = e.target.getAttribute('data-entity-source') === 'true';
+        const conn = this.model.connections.find(c => c.id === connId);
+        if (!conn) return;
+
+        if (entityIsSource) conn.isTotalSource = e.target.checked;
+        else conn.isTotalTarget = e.target.checked;
+        conn.isTotal = Boolean(conn.isTotalSource || conn.isTotalTarget);
+        this.model.notify();
+      });
+    });
+
+    document.querySelectorAll('.prop-rel-remove').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const connId = e.target.getAttribute('data-conn-id');
+        this.model.removeConnection(connId);
+        this.renderRelationshipEditor(rel);
+      });
+    });
+
+    const btnAddEntity = document.getElementById('prop-btn-add-entity');
+    if (btnAddEntity) {
+      btnAddEntity.addEventListener('click', () => {
+        const entityId = document.getElementById('prop-add-entity').value;
+        if (!entityId) return;
+
+        const entity = this.model.getElementById(entityId);
+        const isTotalSource = Boolean(rel.isWeak && entity && entity.isWeak);
+        this.model.addConnection(entityId, rel.id, 'N', '', { isTotalSource });
+        this.renderRelationshipEditor(rel);
+      });
+    }
 
     document.getElementById('prop-btn-delete').addEventListener('click', () => {
       this.model.removeElement(rel.id);
@@ -316,6 +405,8 @@ class PropertyEditor {
 
     const sourceElem = this.model.getElementById(conn.sourceId);
     const targetElem = this.model.getElementById(conn.targetId);
+    const totalSource = conn.isTotalSource !== undefined ? conn.isTotalSource : Boolean(conn.isTotal);
+    const totalTarget = conn.isTotalTarget !== undefined ? conn.isTotalTarget : Boolean(conn.isTotal);
 
     // Se uma das pontas for um atributo, a conexão não carrega cardinalidade
     const isAttributeConn = (sourceElem && sourceElem.type === 'attribute') || (targetElem && targetElem.type === 'attribute');
@@ -330,8 +421,15 @@ class PropertyEditor {
 
       <div class="form-group">
         <label class="checkbox-label">
-          <input type="checkbox" id="prop-is-total" ${conn.isTotal ? 'checked' : ''}>
-          <span>Participação Total (Linha Dupla)</span>
+          <input type="checkbox" id="prop-is-total-source" ${totalSource ? 'checked' : ''}>
+          <span>Participação Total em ${sourceElem ? this.escapeHtml(sourceElem.name) : 'Origem'}</span>
+        </label>
+      </div>
+
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" id="prop-is-total-target" ${totalTarget ? 'checked' : ''}>
+          <span>Participação Total em ${targetElem ? this.escapeHtml(targetElem.name) : 'Destino'}</span>
         </label>
       </div>
 
@@ -366,6 +464,11 @@ class PropertyEditor {
           <label>Nome do Papel (Role)</label>
           <input type="text" id="prop-role-source" placeholder="Ex: supervisor" value="${this.escapeHtml(conn.roleSource || '')}">
         </div>
+
+        <div class="form-group">
+          <label>Nome do Papel no Destino</label>
+          <input type="text" id="prop-role-target" placeholder="Ex: subordinado" value="${this.escapeHtml(conn.roleTarget || '')}">
+        </div>
       ` : ''}
 
       <div class="form-group" style="margin-top: 10px;">
@@ -374,8 +477,15 @@ class PropertyEditor {
     `;
     this.bodyEl.innerHTML = html;
 
-    document.getElementById('prop-is-total').addEventListener('change', (e) => {
-      conn.isTotal = e.target.checked;
+    document.getElementById('prop-is-total-source').addEventListener('change', (e) => {
+      conn.isTotalSource = e.target.checked;
+      conn.isTotal = Boolean(conn.isTotalSource || conn.isTotalTarget);
+      this.model.notify();
+    });
+
+    document.getElementById('prop-is-total-target').addEventListener('change', (e) => {
+      conn.isTotalTarget = e.target.checked;
+      conn.isTotal = Boolean(conn.isTotalSource || conn.isTotalTarget);
       this.model.notify();
     });
 
@@ -392,6 +502,11 @@ class PropertyEditor {
 
       document.getElementById('prop-role-source').addEventListener('change', (e) => {
         conn.roleSource = e.target.value;
+        this.model.notify();
+      });
+
+      document.getElementById('prop-role-target').addEventListener('change', (e) => {
+        conn.roleTarget = e.target.value;
         this.model.notify();
       });
     }

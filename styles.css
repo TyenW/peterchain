@@ -749,6 +749,11 @@ a {
   stroke-dasharray: none;
 }
 
+.connection-line.total-side {
+  stroke-width: 2;
+  stroke-dasharray: none;
+}
+
 .connection-line:hover {
   stroke: var(--accent);
   stroke-width: 3;
@@ -1143,17 +1148,62 @@ a {
 
 /* Responsividade e Layout Dinâmico */
 @media (max-width: 900px) {
+  html, body {
+    overflow: auto;
+  }
+
+  .app-header {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: var(--header-height);
+    padding: 8px 12px;
+    gap: 8px;
+  }
+
+  .logo-area {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .title-wrap .subtitle {
+    display: none;
+  }
+
+  .header-actions {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+
+  .btn-text-label {
+    display: none;
+  }
+
+  .btn {
+    padding: 8px 10px;
+  }
+
   .main-layout {
     flex-direction: column;
+    height: auto;
+    min-height: calc(100vh - var(--header-height));
+    overflow: visible;
   }
 
   .nlp-panel {
     width: 100% !important;
     min-width: 100%;
     max-width: 100%;
-    height: 40vh;
+    height: auto;
+    min-height: 45vh;
+    flex-shrink: 0;
     border-right: none;
     border-bottom: 1px solid var(--border-color);
+  }
+
+  .nlp-content {
+    min-height: 320px;
   }
 
   .panel-resizer {
@@ -1161,17 +1211,47 @@ a {
   }
 
   .canvas-panel {
-    height: 60vh;
+    flex: 1;
+    min-height: 50vh;
+    height: auto;
+  }
+
+  .svg-container {
+    min-height: 280px;
   }
 
   .canvas-toolbar {
-    width: 95%;
+    width: calc(100% - 16px);
     overflow-x: auto;
     justify-content: flex-start;
     top: 8px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .canvas-toolbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tool-btn {
+    min-width: 40px;
+    min-height: 40px;
+    flex-shrink: 0;
   }
 
   .tool-btn span {
+    display: none;
+  }
+
+  .status-bar {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: var(--status-height);
+    padding: 6px 10px;
+    gap: 4px;
+  }
+
+  .canvas-info {
     display: none;
   }
 
@@ -1186,7 +1266,12 @@ a {
     grid-template-columns: 1fr;
   }
 
+  .project-title-container {
+    flex: 1 1 100%;
+    order: -1;
+  }
+
   .project-title-container input {
-    width: 120px;
+    width: 100%;
   }
 }

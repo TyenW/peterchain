@@ -66,6 +66,26 @@ class CanvasRenderer {
     if (zoomText) zoomText.textContent = `100%`;
   }
 
+  zoomToFit() {
+    const bbox = this.viewportGroup.getBBox();
+    if (!bbox || bbox.width === 0 || bbox.height === 0) {
+      this.resetZoomAndPan();
+      return;
+    }
+    const containerRect = this.container.getBoundingClientRect();
+    const padding = 80;
+    const scaleX = (containerRect.width - padding) / bbox.width;
+    const scaleY = (containerRect.height - padding) / bbox.height;
+    const fitScale = Math.min(1.5, Math.max(0.3, Math.min(scaleX, scaleY)));
+
+    this.zoomScale = fitScale;
+    this.panX = Math.round((containerRect.width - bbox.width * fitScale) / 2 - bbox.x * fitScale);
+    this.panY = Math.round((containerRect.height - bbox.height * fitScale) / 2 - bbox.y * fitScale);
+    this.updateTransform();
+    const zoomText = document.getElementById('zoom-level-text');
+    if (zoomText) zoomText.textContent = `${Math.round(this.zoomScale * 100)}%`;
+  }
+
   updateTransform() {
     this.viewportGroup.setAttribute('transform', `translate(${this.panX}, ${this.panY}) scale(${this.zoomScale})`);
   }
@@ -124,31 +144,6 @@ class CanvasRenderer {
 
   // --- RENDERIZAR ELEMENTOS PETER CHEN ---
   renderElements() {
-    // 1. Entidades (Retângulos)
-    this.model.entities.forEach(entity => {
-      const g = this.createGroup(entity.id, 'entity');
-      const isSelected = this.selectedElementId === entity.id;
-
-      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-      rect.setAttribute('x', entity.x - entity.width / 2);
-      rect.setAttribute('y', entity.y - entity.height / 2);
-      rect.setAttribute('width', entity.width);
-      rect.setAttribute('height', entity.height);
-      rect.setAttribute('class', 'entity-rect');
-
-      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      text.setAttribute('x', entity.x);
-      text.setAttribute('y', entity.y);
-      text.setAttribute('class', 'element-text entity-text');
-      text.textContent = entity.name;
-
-      g.appendChild(rect);
-      g.appendChild(text);
-      if (isSelected) g.classList.add('selected');
-
-      this.elementsLayer.appendChild(g);
-    });
-
     // 1. Entidades (Retângulos simples ou duplos)
     this.model.entities.forEach(entity => {
       const g = this.createGroup(entity.id, 'entity');
@@ -312,7 +307,10 @@ class CanvasRenderer {
       const startPt = this.calculateEdgeIntersection(source, target);
       const endPt = this.calculateEdgeIntersection(target, source);
 
-      const lineClass = `connection-line ${conn.isTotal ? 'total' : ''} ${isSelected ? 'selected' : ''}`;
+      const hasTotalLegacy = Boolean(conn.isTotal);
+      const hasTotalSource = conn.isTotalSource !== undefined ? Boolean(conn.isTotalSource) : hasTotalLegacy;
+      const hasTotalTarget = conn.isTotalTarget !== undefined ? Boolean(conn.isTotalTarget) : hasTotalLegacy;
+      const lineClass = `connection-line ${hasTotalLegacy ? 'total' : ''} ${isSelected ? 'selected' : ''}`;
       const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
       line.setAttribute('x1', startPt.x);
       line.setAttribute('y1', startPt.y);
@@ -322,6 +320,14 @@ class CanvasRenderer {
       line.setAttribute('data-conn-id', conn.id);
 
       this.connectionsLayer.appendChild(line);
+
+      // Participação total por lado: desenha uma linha paralela apenas no trecho do lado marcado.
+      if (hasTotalSource) {
+        this.renderTotalParticipationSegment(startPt, endPt, 0.0, 0.55, isSelected, conn.id);
+      }
+      if (hasTotalTarget) {
+        this.renderTotalParticipationSegment(startPt, endPt, 0.45, 1.0, isSelected, conn.id);
+      }
 
       // Renderizar rótulos de cardinalidade (ex: 1, N, M)
       if (conn.cardinalitySource) {
@@ -339,6 +345,30 @@ class CanvasRenderer {
         this.renderRoleLabel(conn.roleTarget, startPt, endPt, 0.65);
       }
     });
+  }
+
+  renderTotalParticipationSegment(startPt, endPt, tStart, tEnd, isSelected, connId) {
+    const baseX1 = startPt.x + (endPt.x - startPt.x) * tStart;
+    const baseY1 = startPt.y + (endPt.y - startPt.y) * tStart;
+    const baseX2 = startPt.x + (endPt.x - startPt.x) * tEnd;
+    const baseY2 = startPt.y + (endPt.y - startPt.y) * tEnd;
+
+    const dx = baseX2 - baseX1;
+    const dy = baseY2 - baseY1;
+    const len = Math.hypot(dx, dy) || 1;
+
+    const offset = 3;
+    const nx = -dy / len;
+    const ny = dx / len;
+
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', baseX1 + nx * offset);
+    line.setAttribute('y1', baseY1 + ny * offset);
+    line.setAttribute('x2', baseX2 + nx * offset);
+    line.setAttribute('y2', baseY2 + ny * offset);
+    line.setAttribute('class', `connection-line total-side ${isSelected ? 'selected' : ''}`);
+    line.setAttribute('data-conn-id', connId);
+    this.connectionsLayer.appendChild(line);
   }
 
   renderCardinalityBadge(label, startPt, endPt, t) {

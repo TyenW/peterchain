@@ -14,7 +14,27 @@ class NLPParser {
 
   // Sanitização e utilitários de texto
   normalizeText(text) {
-    return text.trim().replace(/\r\n/g, '\n');
+    if (!text) return '';
+
+    const normalized = text.replace(/\r\n/g, '\n').replace(/^\uFEFF/, '');
+    const lines = normalized.split('\n');
+    const cleanedLines = [];
+
+    lines.forEach(line => {
+      const trimmed = line.trim();
+
+      // Ignorar cercas markdown de bloco de código
+      if (/^```/.test(trimmed)) return;
+
+      // Ignorar comentários de linha inteira
+      if (/^\/\//.test(trimmed)) return;
+
+      // Remover comentário inline com //
+      const noInlineComment = line.replace(/\s+\/\/.*$/, '');
+      cleanedLines.push(noInlineComment);
+    });
+
+    return cleanedLines.join('\n').replace(/→/g, '->').trim();
   }
 
   // Singularização simples de palavras comuns em PT-BR para nomes de entidade
@@ -45,7 +65,7 @@ class NLPParser {
 
     // 2. SEGUNDO PASSO: Dividir o restante em sentenças ou comandos de linha
     const lines = textWithoutBlocks
-      .split(/[\n.]/)
+      .split(/[\n;]/)
       .map(s => s.trim())
       .filter(s => s.length > 0);
 
@@ -56,8 +76,10 @@ class NLPParser {
       });
     }
 
-    // Executar auto-layout para posicionar o diagrama de forma organizada
-    this.model.autoLayout();
+    // Executar auto-layout apenas na geração completa (preserva posição manual no incremental)
+    if (!appendOnly) {
+      this.model.autoLayout();
+    }
 
     const summary = `${this.model.entities.length} Entidades, ${this.model.attributes.length} Atributos, ${this.model.relationships.length} Relacionamentos`;
     this.log(`Concluído: ${summary}`, 'success');
@@ -65,7 +87,11 @@ class NLPParser {
     return {
       success: true,
       summary,
-      log: this.logEntries  // --- PARSER DE SINTAXE DE BLOCO: NOME_ENTIDADE { ATRIBUTOS... } ---
+      log: this.logEntries
+    };
+  }
+
+  // --- PARSER DE SINTAXE DE BLOCO: NOME_ENTIDADE { ATRIBUTOS... } ---
   extractAndProcessBlockSyntax(text) {
     // 0. Processar Especializações / Categorias EER: especializacao d (Pessoa -> Aluno, Professor)
     const specRegex = /(?:especializacao|herança|categoria)\s+([dou])\s*\(([^->]+)->([^)]+)\)/gi;
@@ -93,9 +119,21 @@ class NLPParser {
       modifiedText = modifiedText.replace(specMatch[0], '');
     }
 
-    // 1. Regex para encontrar blocos tipo: ALUNO { *cpf, ~idade, ++telefones }
-    const blockRegex = /((?:entidade\s+fraca\s+)?(?:relacionamento\s+fraco\s+)?[a-záàâãéèêíóòôõúç0-9_\-\s]+)\s*\{([^}]+)\}/gi;
+    // 1. Regex para relacionamento com assinatura + bloco de atributos
+    // Ex.: matricula (Aluno N : N Curso) { DataMatricula, Nota }
+    const relWithAttrsRegex = /((?:relacionamento\s+fraco\s+)?[a-záàâãéèêíóòôõúç0-9_\-\s]+)\s*\(([^)]+)\)\s*\{([^}]+)\}/gi;
     let match;
+
+    while ((match = relWithAttrsRegex.exec(modifiedText)) !== null) {
+      const relName = match[1].trim();
+      const relSignature = match[2].trim();
+      const relAttrs = match[3].trim();
+      this.processBlockRelationship(relName, relSignature, relAttrs);
+      modifiedText = modifiedText.replace(match[0], '');
+    }
+
+    // 2. Regex para encontrar blocos tipo: ALUNO { *cpf, ~idade, ++telefones }
+    const blockRegex = /((?:entidade\s+fraca\s+)?(?:relacionamento\s+fraco\s+)?[a-záàâãéèêíóòôõúç0-9_\-\s]+)\s*\{([^}]+)\}/gi;
 
     while ((match = blockRegex.exec(modifiedText)) !== null) {
       const rawName = match[1].trim();
@@ -111,7 +149,7 @@ class NLPParser {
       modifiedText = modifiedText.replace(match[0], '');
     }
 
-    // 2. Sintaxe de relacionamento tipo: relacionamento fraco possui (Aluno 1:N Dependente) ou (Aluno N : N Curso)
+    // 3. Sintaxe de relacionamento tipo: relacionamento fraco possui (Aluno 1:N Dependente) ou (Aluno N : N Curso)
     const relParenRegex = /((?:relacionamento\s+fraco\s+)?[a-záàâãéèêíóòôõúç0-9_\-\s]+)\s*\(([^)]+)\)/gi;
     while ((match = relParenRegex.exec(modifiedText)) !== null) {
       const name = match[1].trim();
@@ -130,9 +168,9 @@ class NLPParser {
     let isWeak = false;
 
     // Verificar se é Entidade Fraca
-    if (/^entidade\s+fraca\s+/i.test(cleanRaw)) {
+    if (/^entidade[\s_-]+fraca\s*:?\s+/i.test(cleanRaw)) {
       isWeak = true;
-      cleanRaw = cleanRaw.replace(/^entidade\s+fraca\s+/i, '').trim();
+      cleanRaw = cleanRaw.replace(/^entidade[\s_-]+fraca\s*:?\s+/i, '').trim();
     }
 
     const entityName = this.toSingular(cleanRaw);
@@ -199,7 +237,7 @@ class NLPParser {
     });
   }
 
-  processBlockRelationship(relRawName, bodyText) {
+  processBlockRelationship(relRawName, bodyText, relationshipAttrsText = '') {
     let cleanRaw = relRawName.trim();
     let isWeak = false;
 
@@ -210,15 +248,36 @@ class NLPParser {
     }
 
     const relName = cleanRaw.toUpperCase() || 'RELACIONA';
+    const participants = this.parseRelationshipParticipants(bodyText);
 
-    // Formato ex: "aluno N : N curso" ou "aluno (1) - curso (N)" ou "aluno N <-> N curso"
-    const match = bodyText.match(/([a-záàâãéèêíóòôõúç0-9_\s]+)\s*\(?([1nm])\)?\s*[:\-<>\s]+\s*\(?([1nm])\)?\s*([a-záàâãéèêíóòôõúç0-9_\s]+)/i);
+    if (participants.length >= 2) {
+      const rel = this.createRelationshipFromParticipants(relName, participants, isWeak);
+      if (!rel) return;
+
+      const cards = participants.map(p => p.card).join(':');
+      const entitiesList = participants.map(p => `[${p.entity.name}]`).join(', ');
+      this.log(`Bloco: Relacionamento [${rel.name}] ${isWeak ? '(IDENTIFICADOR FRACO)' : ''} (${cards}) entre ${entitiesList}.`, 'success');
+
+      const roles = participants.filter(p => p.role).map(p => `[${p.role}]`);
+      if (roles.length > 0) {
+        this.log(`  └─ Papéis: ${roles.join(', ')}.`, 'info');
+      }
+
+      this.parseRelationshipAttributes(rel, relationshipAttrsText);
+      return;
+    }
+
+    // Formato binário com suporte a role names:
+    // "Funcionario [supervisor] 1 : N Funcionario [subordinado]"
+    const match = bodyText.match(/^(.+?)\s*(?:\[([^\]]+)\])?\s*\(?\s*([1nm])\s*\)?\s*(?::|-|<->)\s*\(?\s*([1nm])\s*\)?\s*(.+?)\s*(?:\[([^\]]+)\])?\s*$/i);
 
     if (match) {
       const entity1Name = this.toSingular(match[1]);
-      const cardSource = match[2].toUpperCase();
-      const cardTarget = match[3].toUpperCase();
-      const entity2Name = this.toSingular(match[4]);
+      const role1 = (match[2] || '').trim();
+      const cardSource = match[3].toUpperCase();
+      const cardTarget = match[4].toUpperCase();
+      const entity2Name = this.toSingular(match[5]);
+      const role2 = (match[6] || '').trim();
 
       const res1 = this.model.addEntity(entity1Name);
       const res2 = this.model.addEntity(entity2Name);
@@ -230,11 +289,141 @@ class NLPParser {
 
       // Se for relacionamento fraco, a conexão com a entidade fraca é Total (linha dupla)
       const isTotalTarget = isWeak || ent2.isWeak;
-      this.model.addConnection(ent1.id, rel.id, cardSource, '');
-      this.model.addConnection(rel.id, ent2.id, '', cardTarget, { isTotal: isTotalTarget });
+      this.model.addConnection(ent1.id, rel.id, cardSource, '', { roleSource: role1 });
+      this.model.addConnection(ent2.id, rel.id, cardTarget, '', { roleSource: role2, isTotalSource: isTotalTarget });
 
       this.log(`Bloco: Relacionamento [${rel.name}] ${isWeak ? '(IDENTIFICADOR FRACO)' : ''} (${cardSource}:${cardTarget}) entre [${ent1.name}] e [${ent2.name}].`, 'success');
+      if (role1 || role2) {
+        this.log(`  └─ Papéis: ${role1 ? `[${role1}]` : '[sem papel]'} e ${role2 ? `[${role2}]` : '[sem papel]'}.`, 'info');
+      }
+
+      this.parseRelationshipAttributes(rel, relationshipAttrsText);
+    } else if (relationshipAttrsText) {
+      // Cenário legado: quando bodyText era usado como bloco contendo assinatura na primeira linha
+      const lines = bodyText.split(/[\n;]/).map(l => l.trim()).filter(Boolean);
+      if (lines.length > 0 && lines[0] !== bodyText.trim()) {
+        this.processBlockRelationship(relRawName, lines[0], relationshipAttrsText || lines.slice(1).join(', '));
+      }
     }
+  }
+
+  parseRelationshipParticipants(bodyText) {
+    if (!bodyText || !bodyText.trim()) return [];
+
+    // Relacionamentos n-ários usam ':' como separador entre participantes.
+    // Ex.: Fornecedor N : Produto N : Projeto 1
+    const rawParts = bodyText
+      .split(/\s*:\s*/)
+      .map(part => part.trim())
+      .filter(Boolean);
+
+    if (rawParts.length < 2) return [];
+
+    const participants = [];
+    for (const raw of rawParts) {
+      const parsed = this.parseRelationshipParticipantPart(raw);
+      if (!parsed) {
+        return [];
+      }
+
+      const entityName = parsed.entityName;
+      const role = parsed.role;
+      const card = parsed.card;
+      if (!entityName) return [];
+
+      const res = this.model.addEntity(entityName);
+      const entity = res.element || res;
+      participants.push({ entity, role, card });
+    }
+
+    return participants;
+  }
+
+  parseRelationshipParticipantPart(raw) {
+    if (!raw) return null;
+
+    // Formato 1: Entidade [papel] N
+    let partMatch = raw.match(/^(.+?)\s*(?:\[([^\]]+)\])?\s*\(?\s*(1|n|m)\s*\)?$/i);
+    if (partMatch) {
+      return {
+        entityName: this.toSingular(partMatch[1]),
+        role: (partMatch[2] || '').trim(),
+        card: partMatch[3].toUpperCase()
+      };
+    }
+
+    // Formato 2: 1 Entidade [papel]
+    partMatch = raw.match(/^\(?\s*(1|n|m)\s*\)?\s*(.+?)\s*(?:\[([^\]]+)\])?\s*$/i);
+    if (partMatch) {
+      return {
+        entityName: this.toSingular(partMatch[2]),
+        role: (partMatch[3] || '').trim(),
+        card: partMatch[1].toUpperCase()
+      };
+    }
+
+    return null;
+  }
+
+  createRelationshipFromParticipants(relName, participants, isWeak) {
+    if (!participants || participants.length < 2) return null;
+
+    const relRes = this.model.addRelationship(relName, 400, 200, isWeak);
+    const rel = relRes.element || relRes;
+
+    if (isWeak) {
+      this.markWeakParticipants(participants);
+    }
+
+    const weakParticipants = participants.filter(p => p.entity.isWeak);
+    const shouldFallbackMarkLast = isWeak && weakParticipants.length === 0;
+
+    participants.forEach((participant, idx) => {
+      const isWeakSide = weakParticipants.includes(participant);
+      const isTotalSource = isWeakSide || (shouldFallbackMarkLast && idx === participants.length - 1);
+
+      this.model.addConnection(participant.entity.id, rel.id, participant.card, '', {
+        roleSource: participant.role,
+        isTotalSource
+      });
+    });
+
+    return rel;
+  }
+
+  markWeakParticipants(participants) {
+    if (!participants || participants.length === 0) return;
+
+    // Regra prática: em relacionamento identificador, lados com cardinalidade
+    // diferente de 1 são candidatos naturais a entidades fracas.
+    const nonOne = participants.filter(p => p.card !== '1');
+    if (nonOne.length > 0) {
+      nonOne.forEach(p => {
+        p.entity.isWeak = true;
+      });
+      return;
+    }
+
+    // Fallback conservador para 1:1: marca o último participante como fraco.
+    participants[participants.length - 1].entity.isWeak = true;
+  }
+
+  parseRelationshipAttributes(relationship, attrsText) {
+    if (!attrsText || !attrsText.trim()) return;
+
+    const attrTokens = attrsText
+      .split(/[\n,;]/)
+      .map(token => token.trim())
+      .filter(token => token.length > 0);
+
+    attrTokens.forEach(token => {
+      if (!token.includes(':') && !token.includes('->')) {
+        const attr = this.model.addAttribute(token, relationship.id);
+        if (attr) {
+          this.log(`  └─ Atributo de Relacionamento [${attr.name}] adicionado a [${relationship.name}].`, 'info');
+        }
+      }
+    });
   }
 
   // --- PROCESSAMENTO DE FRASES INDIVIDUAIS / COMANDOS ---
@@ -243,6 +432,11 @@ class NLPParser {
     if (s.startsWith('//') || s.startsWith('#')) return; // Comentários
 
     // Comandos diretos de criação
+    if (s.startsWith('criar entidade fraca') || s.startsWith('nova entidade fraca') || s.startsWith('entidade fraca ')) {
+      this.handleCommandCreateEntity(sentence);
+      return;
+    }
+
     if (s.startsWith('criar entidade') || s.startsWith('nova entidade') || s.startsWith('entidade ')) {
       this.handleCommandCreateEntity(sentence);
       return;
@@ -283,11 +477,13 @@ class NLPParser {
 
   // --- COMANDOS INCREMENTAIS ---
   handleCommandCreateEntity(sentence) {
-    const match = sentence.match(/(?:criar|nova)?\s*entidade\s+([a-záàâãéèêíóòôõúç0-9_\-\s]+)/i);
+    const isWeak = /entidade\s+fraca/i.test(sentence);
+    const match = sentence.match(/(?:criar|nova)?\s*entidade\s+(?:fraca\s+)?([a-záàâãéèêíóòôõúç0-9_\-\s]+)/i);
     if (match && match[1]) {
       const name = this.toSingular(match[1].trim());
-      const entity = this.model.addEntity(name);
-      this.log(`Comando: Entidade [${entity.name}] criada.`, 'success');
+      const res = this.model.addEntity(name, 200, 200, isWeak);
+      const entity = res.element || res;
+      this.log(`Comando: Entidade [${entity.name}] criada ${isWeak ? '(FRACA)' : ''}.`, 'success');
     }
   }
 
@@ -318,9 +514,10 @@ class NLPParser {
       const entity1Name = this.toSingular(match[2].trim());
       const entity2Name = this.toSingular(match[3].trim());
 
-      const ent1 = this.model.addEntity(entity1Name);
-      const ent2 = this.model.addEntity(entity2Name);
-      const rel = this.model.addRelationship(relName, 400, 200, isWeak);
+      const ent1Res = this.model.addEntity(entity1Name);
+      const ent2Res = this.model.addEntity(entity2Name);
+      const ent1 = ent1Res.element || ent1Res;
+      const ent2 = ent2Res.element || ent2Res;
 
       let card1 = '1';
       let card2 = 'N';
@@ -330,8 +527,12 @@ class NLPParser {
         card2 = cardMatch[2].toUpperCase();
       }
 
-      this.model.addConnection(ent1.id, rel.id, card1, '');
-      this.model.addConnection(rel.id, ent2.id, '', card2);
+      const participants = [
+        { entity: ent1, role: '', card: card1 },
+        { entity: ent2, role: '', card: card2 }
+      ];
+      const rel = this.createRelationshipFromParticipants(relName, participants, isWeak);
+      if (!rel) return;
 
       this.log(`Comando: Relacionamento ${isWeak ? 'FRACO ' : ''}[${rel.name}] (${card1}:${card2}) criado entre [${ent1.name}] e [${ent2.name}].`, 'success');
     }

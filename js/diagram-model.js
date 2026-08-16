@@ -7,7 +7,7 @@ class DiagramModel {
     this.attributes = [];     // { id, name, type: 'attribute', parentId, isKey, isPartialKey, isMultivalued, isDerived, x, y, width, height }
     this.relationships = [];  // { id, name, type: 'relationship', isWeak, x, y, width, height }
     this.specializations = [];// { id, type: 'specialization', specType: 'd'|'o'|'u', superEntityId, subEntityIds: [], x, y, width: 36, height: 36 }
-    this.connections = [];    // { id, sourceId, targetId, cardinalitySource, cardinalityTarget, isTotal, roleSource, roleTarget }
+    this.connections = [];    // { id, sourceId, targetId, cardinalitySource, cardinalityTarget, isTotalSource, isTotalTarget, isTotal, roleSource, roleTarget }
     this.listeners = [];
   }
 
@@ -191,6 +191,9 @@ class DiagramModel {
     if (!sourceId || !targetId || sourceId === targetId) return null;
 
     const opts = typeof options === 'boolean' ? { isTotal: options } : (options || {});
+    const hasLegacyTotal = opts.isTotal !== undefined;
+    const nextTotalSource = opts.isTotalSource !== undefined ? Boolean(opts.isTotalSource) : (hasLegacyTotal ? Boolean(opts.isTotal) : undefined);
+    const nextTotalTarget = opts.isTotalTarget !== undefined ? Boolean(opts.isTotalTarget) : (hasLegacyTotal ? Boolean(opts.isTotal) : undefined);
 
     // Verificar se já existe conexão entre os dois elementos
     const existing = this.connections.find(
@@ -201,7 +204,9 @@ class DiagramModel {
     if (existing) {
       if (cardinalitySource) existing.cardinalitySource = cardinalitySource;
       if (cardinalityTarget) existing.cardinalityTarget = cardinalityTarget;
-      if (opts.isTotal !== undefined) existing.isTotal = Boolean(opts.isTotal);
+      if (nextTotalSource !== undefined) existing.isTotalSource = nextTotalSource;
+      if (nextTotalTarget !== undefined) existing.isTotalTarget = nextTotalTarget;
+      existing.isTotal = Boolean(existing.isTotalSource || existing.isTotalTarget);
       if (opts.roleSource) existing.roleSource = opts.roleSource;
       if (opts.roleTarget) existing.roleTarget = opts.roleTarget;
       this.notify();
@@ -214,7 +219,9 @@ class DiagramModel {
       targetId,
       cardinalitySource,
       cardinalityTarget,
-      isTotal: Boolean(opts.isTotal),
+      isTotalSource: Boolean(nextTotalSource),
+      isTotalTarget: Boolean(nextTotalTarget),
+      isTotal: Boolean(nextTotalSource || nextTotalTarget),
       roleSource: opts.roleSource || '',
       roleTarget: opts.roleTarget || ''
     };
@@ -379,7 +386,18 @@ class DiagramModel {
     this.attributes = data.attributes || [];
     this.relationships = data.relationships || [];
     this.specializations = data.specializations || [];
-    this.connections = data.connections || [];
+    this.connections = (data.connections || []).map(conn => {
+      const totalSource = conn.isTotalSource !== undefined ? Boolean(conn.isTotalSource) : Boolean(conn.isTotal);
+      const totalTarget = conn.isTotalTarget !== undefined ? Boolean(conn.isTotalTarget) : Boolean(conn.isTotal);
+      return {
+        ...conn,
+        isTotalSource: totalSource,
+        isTotalTarget: totalTarget,
+        isTotal: Boolean(totalSource || totalTarget),
+        roleSource: conn.roleSource || '',
+        roleTarget: conn.roleTarget || ''
+      };
+    });
     this.notify();
   }
 }

@@ -82,25 +82,54 @@ class StorageExportManager {
     return false;
   }
 
-  // --- EXPORTAR SVG ---
-  exportSVG(filename = 'diagrama_der.svg') {
+  // --- ESTILOS PETER CHEN FORMAL (PRETO E BRANCO ACADÊMICO) ---
+  getChenStylesheet() {
+    return `
+      .entity-rect { fill: #e8e8e8; stroke: #000000; stroke-width: 2px; rx: 0; }
+      .entity-rect.inner { fill: transparent; stroke: #000000; stroke-width: 1.5px; rx: 0; }
+      .attribute-ellipse { fill: #f0f0f0; stroke: #000000; stroke-width: 1.5px; }
+      .attribute-ellipse.inner { fill: transparent; stroke: #000000; stroke-width: 1.2px; }
+      .attribute-ellipse.derived { stroke-dasharray: 6 4; }
+      .relationship-polygon { fill: #d9d9d9; stroke: #000000; stroke-width: 2px; }
+      .relationship-polygon.inner { fill: transparent; stroke: #000000; stroke-width: 1.5px; }
+      .specialization-circle { fill: #ffffff; stroke: #000000; stroke-width: 2px; }
+      .specialization-text { font-family: 'Times New Roman', serif; font-size: 14px; font-weight: 700; fill: #000000; text-anchor: middle; dominant-baseline: central; }
+      .element-text { font-family: 'Times New Roman', serif; font-size: 13px; fill: #000000; text-anchor: middle; dominant-baseline: central; }
+      .entity-text { font-weight: 700; font-size: 14px; }
+      .attribute-text.key-attribute { text-decoration: underline; font-weight: 700; fill: #000000; }
+      .attribute-text.key-partial-attribute { text-decoration: underline dotted; font-weight: 600; fill: #000000; }
+      .relationship-text { font-weight: 700; font-size: 13px; fill: #000000; }
+      .connection-line { stroke: #000000; stroke-width: 1.5px; }
+      .connection-line.total { stroke-width: 4px; }
+      .connection-line.total-side { stroke-width: 1.5px; }
+      .cardinality-badge { font-family: 'Times New Roman', serif; font-size: 13px; font-weight: 700; fill: #000000; text-anchor: middle; dominant-baseline: central; }
+      .role-text { font-family: 'Times New Roman', serif; font-size: 11px; fill: #333333; text-anchor: middle; }
+      .selected { stroke: #000000 !important; }
+      [class*="element-group"].selected rect,
+      [class*="element-group"].selected ellipse,
+      [class*="element-group"].selected polygon,
+      [class*="element-group"].selected circle { stroke: #000000 !important; }
+    `;
+  }
+
+  // --- PREPARAR CLONE SVG LIMPO PARA EXPORTAÇÃO ---
+  prepareExportClone() {
     const svgElement = document.getElementById('der-svg-canvas') || document.getElementById('der-canvas');
-    if (!svgElement) return;
+    if (!svgElement) return null;
 
     const viewportGroup = document.getElementById('viewport-group');
     const bbox = viewportGroup ? viewportGroup.getBBox() : { x: 0, y: 0, width: 800, height: 600 };
-    const padding = 60;
-    const minW = Math.max(800, bbox.width + padding * 2);
-    const minH = Math.max(600, bbox.height + padding * 2);
+    const padding = 80;
+    const width = Math.max(800, bbox.width + padding * 2);
+    const height = Math.max(600, bbox.height + padding * 2);
     const minX = bbox.width > 0 ? bbox.x - padding : 0;
     const minY = bbox.height > 0 ? bbox.y - padding : 0;
 
-    // Clonar nó SVG para exportação limpa
     const clone = svgElement.cloneNode(true);
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-    clone.setAttribute('width', minW);
-    clone.setAttribute('height', minH);
-    clone.setAttribute('viewBox', `${minX} ${minY} ${minW} ${minH}`);
+    clone.setAttribute('width', width);
+    clone.setAttribute('height', height);
+    clone.setAttribute('viewBox', `${minX} ${minY} ${width} ${height}`);
 
     // Resetar transform de pan/zoom no clone
     const cloneViewport = clone.querySelector('#viewport-group');
@@ -108,73 +137,62 @@ class StorageExportManager {
       cloneViewport.setAttribute('transform', 'translate(0, 0) scale(1)');
     }
 
+    // Remover grade de fundo se existir
+    const grid = clone.querySelector('#grid-pattern');
+    if (grid) grid.parentNode.removeChild(grid);
+    const gridRect = clone.querySelector('[fill*="grid"]');
+    if (gridRect) gridRect.parentNode.removeChild(gridRect);
+
+    // Injetar estilos Peter Chen formais
     const styleElement = document.createElement('style');
-    styleElement.textContent = `
-      .entity-rect { fill: #1e293b; stroke: #38bdf8; stroke-width: 2.5px; rx: 4px; }
-      .entity-rect.inner { fill: transparent; stroke: #38bdf8; stroke-width: 1.5px; rx: 3px; }
-      .attribute-ellipse { fill: #0f172a; stroke: #34d399; stroke-width: 2px; }
-      .attribute-ellipse.inner { fill: transparent; stroke: #34d399; stroke-width: 1.5px; }
-      .attribute-ellipse.derived { stroke-dasharray: 5 4; }
-      .relationship-polygon { fill: #311b92; stroke: #a78bfa; stroke-width: 2.5px; }
-      .relationship-polygon.inner { fill: transparent; stroke: #a78bfa; stroke-width: 1.5px; }
-      .specialization-circle { fill: #0f172a; stroke: #f43f5e; stroke-width: 2.5px; }
-      .specialization-text { font-family: monospace; font-size: 15px; font-weight: 700; fill: #f43f5e; text-anchor: middle; dominant-baseline: central; }
-      .element-text { font-family: 'Inter', sans-serif; font-size: 13px; fill: #f8fafc; text-anchor: middle; dominant-baseline: central; }
-      .entity-text { font-weight: 700; }
-      .attribute-text.key-attribute { text-decoration: underline; font-weight: 700; fill: #34d399; }
-      .attribute-text.key-partial-attribute { text-decoration: underline dotted; font-weight: 700; fill: #a7f3d0; }
-      .relationship-text { font-weight: 700; fill: #f3e8ff; }
-      .connection-line { stroke: #64748b; stroke-width: 2px; }
-      .connection-line.total { stroke-width: 4px; }
-      .cardinality-badge { font-family: monospace; font-size: 12px; font-weight: 700; fill: #38bdf8; text-anchor: middle; dominant-baseline: central; }
-      .role-text { font-family: sans-serif; font-size: 10px; fill: #94a3b8; text-anchor: middle; }
-    `;
+    styleElement.textContent = this.getChenStylesheet();
     clone.prepend(styleElement);
 
-    const svgData = new XMLSerializer().serializeToString(clone);
+    // Adicionar fundo branco
+    const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bg.setAttribute('x', minX);
+    bg.setAttribute('y', minY);
+    bg.setAttribute('width', width);
+    bg.setAttribute('height', height);
+    bg.setAttribute('fill', '#ffffff');
+    clone.insertBefore(bg, clone.children[1]); // Depois do <style>, antes do conteúdo
+
+    return { clone, width, height, minX, minY };
+  }
+
+  // --- EXPORTAR SVG (PRETO E BRANCO — NOTAÇÃO PETER CHEN) ---
+  exportSVG(filename = 'diagrama_der.svg') {
+    const result = this.prepareExportClone();
+    if (!result) return;
+
+    const svgData = new XMLSerializer().serializeToString(result.clone);
     const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
     this.downloadBlob(blob, filename);
   }
 
-  // --- EXPORTAR PNG ---
+  // --- EXPORTAR PNG (PRETO E BRANCO — NOTAÇÃO PETER CHEN, 3x RESOLUÇÃO) ---
   exportPNG(filename = 'diagrama_der.png') {
-    const svgElement = document.getElementById('der-svg-canvas') || document.getElementById('der-canvas');
-    if (!svgElement) return;
+    const result = this.prepareExportClone();
+    if (!result) return;
 
-    const viewportGroup = document.getElementById('viewport-group');
-    const bbox = viewportGroup ? viewportGroup.getBBox() : { x: 0, y: 0, width: 800, height: 600 };
-    const padding = 60;
-    const width = Math.max(800, bbox.width + padding * 2);
-    const height = Math.max(600, bbox.height + padding * 2);
-    const minX = bbox.width > 0 ? bbox.x - padding : 0;
-    const minY = bbox.height > 0 ? bbox.y - padding : 0;
-
-    const clone = svgElement.cloneNode(true);
-    clone.setAttribute('width', width);
-    clone.setAttribute('height', height);
-    clone.setAttribute('viewBox', `${minX} ${minY} ${width} ${height}`);
-
-    // Resetar transform no clone antes da conversão para imagem
-    const cloneViewport = clone.querySelector('#viewport-group');
-    if (cloneViewport) {
-      cloneViewport.setAttribute('transform', 'translate(0, 0) scale(1)');
-    }
+    const { clone, width, height } = result;
+    const scale = 3; // Alta resolução para impressão
 
     const svgData = new XMLSerializer().serializeToString(clone);
     const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-    const URL = window.URL || window.webkitURL || window;
-    const blobURL = URL.createObjectURL(svgBlob);
+    const URL_API = window.URL || window.webkitURL || window;
+    const blobURL = URL_API.createObjectURL(svgBlob);
 
     const image = new Image();
     image.onload = () => {
       const canvas = document.createElement('canvas');
-      canvas.width = width * 2; // Alta resolução (2x scale)
-      canvas.height = height * 2;
+      canvas.width = width * scale;
+      canvas.height = height * scale;
       const ctx = canvas.getContext('2d');
-      ctx.scale(2, 2);
+      ctx.scale(scale, scale);
 
-      // Fundo escuro elegante
-      ctx.fillStyle = '#0f172a';
+      // Fundo branco puro para impressão
+      ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, width, height);
 
       ctx.drawImage(image, 0, 0, width, height);
@@ -183,7 +201,7 @@ class StorageExportManager {
         if (blob) {
           this.downloadBlob(blob, filename);
         }
-        URL.revokeObjectURL(blobURL);
+        URL_API.revokeObjectURL(blobURL);
       }, 'image/png');
     };
 

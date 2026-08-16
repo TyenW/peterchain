@@ -76,6 +76,96 @@ class DERValidator {
           elementId: rel.id
         });
       }
+
+      if (rel.isWeak) {
+        const connectedEntities = [...connectedEntityIds]
+          .map(id => this.model.entities.find(e => e.id === id))
+          .filter(Boolean);
+        const hasWeakEntity = connectedEntities.some(e => e.isWeak);
+
+        if (!hasWeakEntity) {
+          issues.push({
+            type: 'warning',
+            message: `O relacionamento identificador [${rel.name}] não está conectado a nenhuma Entidade Fraca. Verifique se o Losango Duplo está sendo usado no contexto correto.`,
+            elementId: rel.id
+          });
+        }
+      }
+    });
+
+    // --- REGRA 2b: Especializações EER consistentes ---
+    this.model.specializations.forEach(spec => {
+      const validSpecTypes = ['d', 'o', 'u'];
+      const type = (spec.specType || '').toLowerCase();
+
+      if (!validSpecTypes.includes(type)) {
+        issues.push({
+          type: 'error',
+          message: `A especialização [${spec.id}] possui tipo inválido. Use apenas d, o ou u.`,
+          elementId: spec.id
+        });
+      }
+
+      const superEnt = this.model.entities.find(e => e.id === spec.superEntityId);
+      if (!superEnt) {
+        issues.push({
+          type: 'error',
+          message: `A especialização [${spec.id}] não possui superentidade válida conectada.`,
+          elementId: spec.id
+        });
+      }
+
+      const subIds = Array.isArray(spec.subEntityIds) ? spec.subEntityIds : [];
+      if (subIds.length === 0) {
+        issues.push({
+          type: 'error',
+          message: `A especialização [${spec.id}] precisa de pelo menos uma subentidade.`,
+          elementId: spec.id
+        });
+      }
+
+      const uniqueSubIds = new Set();
+      subIds.forEach(subId => {
+        if (uniqueSubIds.has(subId)) {
+          issues.push({
+            type: 'warning',
+            message: `A especialização [${spec.id}] possui subentidade repetida.`,
+            elementId: spec.id
+          });
+        }
+        uniqueSubIds.add(subId);
+
+        const subEnt = this.model.entities.find(e => e.id === subId);
+        if (!subEnt) {
+          issues.push({
+            type: 'error',
+            message: `A especialização [${spec.id}] referencia subentidade inexistente.`,
+            elementId: spec.id
+          });
+        }
+        if (spec.superEntityId && subId === spec.superEntityId) {
+          issues.push({
+            type: 'error',
+            message: `A especialização [${spec.id}] não pode usar a mesma entidade como superentidade e subentidade.`,
+            elementId: spec.id
+          });
+        }
+      });
+
+      // Verifica conexões físicas do círculo de especialização para evitar artefatos quebrados.
+      const specConns = this.model.connections.filter(c => c.sourceId === spec.id || c.targetId === spec.id);
+      const entityConnCount = specConns.reduce((count, c) => {
+        const otherId = c.sourceId === spec.id ? c.targetId : c.sourceId;
+        return count + (this.model.entities.some(e => e.id === otherId) ? 1 : 0);
+      }, 0);
+
+      if (entityConnCount < 2) {
+        issues.push({
+          type: 'warning',
+          message: `A especialização [${spec.id}] está com poucas conexões no diagrama. Verifique as ligações com super e subentidades.`,
+          elementId: spec.id
+        });
+      }
     });
 
     // --- REGRA 3: Atributos órfãos (sem entidade ou relacionamento pai) ---

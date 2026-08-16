@@ -155,9 +155,38 @@ class InteractionHandler {
             if (src && tgt) {
               if (src.type === 'entity' && tgt.type === 'entity') {
                 alert('Na notação de Peter Chen, Entidades não se conectam diretamente. Crie um Relacionamento (Losango) entre elas.');
-              } else if (src.type === 'attribute' && tgt.type === 'attribute') {
-                alert('Atributos se conectam a Entidades ou Relacionamentos, não diretamente a outros atributos.');
               } else {
+                // Atributos conectados a outros Atributos são permitidos (Atributos Compostos)
+                if (src.type === 'attribute' && tgt.type === 'attribute') {
+                  tgt.parentId = src.id; // Vincula como sub-atributo
+                  this.model.addConnection(this.connectSourceId, id);
+                  this.cancelConnection();
+                  this.setTool('select');
+                  return;
+                }
+
+                // Padronização: ao conectar Entidade <-> Relacionamento, sempre gravar como Entidade -> Relacionamento
+                if (src.type === 'entity' && tgt.type === 'relationship') {
+                  const isTotalSource = Boolean(tgt.isWeak && src.isWeak);
+                  this.model.addConnection(src.id, tgt.id, 'N', '', { isTotalSource });
+
+                  // Modo n-ário: mantém o relacionamento como âncora para conectar outras entidades
+                  this.connectSourceId = tgt.id;
+                  this.showConnectionHint(true);
+                  return;
+                }
+
+                if (src.type === 'relationship' && tgt.type === 'entity') {
+                  const isTotalSource = Boolean(src.isWeak && tgt.isWeak);
+                  this.model.addConnection(tgt.id, src.id, 'N', '', { isTotalSource });
+
+                  // Modo n-ário: mantém o relacionamento como âncora para conectar outras entidades
+                  this.connectSourceId = src.id;
+                  this.showConnectionHint(true);
+                  return;
+                }
+
+                // Demais combinações seguem fluxo original
                 this.model.addConnection(this.connectSourceId, id);
               }
             }
@@ -188,8 +217,11 @@ class InteractionHandler {
       const dx = canvasCoords.x - this.dragStartPos.x;
       const dy = canvasCoords.y - this.dragStartPos.y;
 
-      this.draggedElement.x = Math.round(this.elementStartPos.x + dx);
-      this.draggedElement.y = Math.round(this.elementStartPos.y + dy);
+      // Snap to Grid (Grade de 10px)
+      const rawX = this.elementStartPos.x + dx;
+      const rawY = this.elementStartPos.y + dy;
+      this.draggedElement.x = Math.round(rawX / 10) * 10;
+      this.draggedElement.y = Math.round(rawY / 10) * 10;
 
       this.renderer.render();
       return;

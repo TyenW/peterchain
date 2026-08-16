@@ -8,7 +8,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const renderer = new CanvasRenderer(model);
   const handler = new InteractionHandler(model, renderer);
   const parser = new NLPParser(model);
-  // Expor gerenciador de histórico globalmente para atalhos do InteractionHandler
+  const historyManager = new HistoryManager(model);
+  const validator = new DERValidator(model);
+  const storageManager = new StorageExportManager(model);
   window.appHistoryManager = historyManager;
 
   // Mapeamento de Elementos da Interface DOM
@@ -19,28 +21,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const terminalLog = document.getElementById('terminal-log');
   const parsedSummary = document.getElementById('parsed-summary');
   const projectTitleInput = document.getElementById('project-title-input');
-
-  // Mapeamento de Abas Mobile
-  const tabCodeBtn = document.getElementById('tab-code-btn');
-  const tabCanvasBtn = document.getElementById('tab-canvas-btn');
-  const nlpPanelEl = document.getElementById('nlp-panel');
-  const canvasPanelEl = document.querySelector('.canvas-panel');
-
-  if (tabCodeBtn && tabCanvasBtn && nlpPanelEl && canvasPanelEl) {
-    tabCodeBtn.addEventListener('click', () => {
-      tabCodeBtn.classList.add('active');
-      tabCanvasBtn.classList.remove('active');
-      nlpPanelEl.classList.add('active');
-      canvasPanelEl.classList.remove('active');
-    });
-
-    tabCanvasBtn.addEventListener('click', () => {
-      tabCanvasBtn.classList.add('active');
-      tabCodeBtn.classList.remove('active');
-      canvasPanelEl.classList.add('active');
-      nlpPanelEl.classList.remove('active');
-    });
-  }
 
   // 2. Função de Atualização de Logs no Terminal
   function renderTerminalLog(logEntries) {
@@ -72,19 +52,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (!appendOnly) {
+      renderer.resetZoomAndPan();
       isDiagramGenerated = true;
-      nlpInput.value = '';
-      nlpInput.placeholder = `SQL Console Ativo — Digite comandos incrementais:
-> criar entidade professor
-> adicionar atributo email em aluno
-> deletar entidade curso
-> criar relacionamento ministra entre professor e curso`;
-      
-      const sqlWelcome = { msg: 'SQL CONSOLE ATIVO. Diagrama pronto para comandos incrementais de alteração e exclusão.', type: 'cmd', timestamp: new Date().toLocaleTimeString() };
-      parser.logEntries.push(sqlWelcome);
-      renderTerminalLog(parser.logEntries);
-    } else {
-      nlpInput.value = '';
     }
   }
 
