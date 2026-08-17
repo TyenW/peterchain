@@ -22,14 +22,30 @@ class OrthogonalRouter {
 
   // --- ALGORITMO A* PARA ROTEAMENTO DE UM FIO ENTIDADE/RELACIONAMENTO ---
   findPath(startPt, endPt, currentConnId = null) {
-    const sx = this.snap(startPt.x);
-    const sy = this.snap(startPt.y);
-    const ex = this.snap(endPt.x);
-    const ey = this.snap(endPt.y);
+    // 2. SEGMENTO DE SAÍDA MÍNIMO (ROUTING STUBS DE 24PX OBRIGATÓRIOS)
+    const stubLen = 24;
+    let sStub = { ...startPt };
+    let eStub = { ...endPt };
 
-    if (sx === ex && sy === ey) return [startPt, endPt];
+    // Projetar pino de saída perpendicular antes da 1ª dobra
+    if (startPt.face === 'east') sStub.x += stubLen;
+    else if (startPt.face === 'west') sStub.x -= stubLen;
+    else if (startPt.face === 'north') sStub.y -= stubLen;
+    else if (startPt.face === 'south') sStub.y += stubLen;
 
-    // Mapeamento de obstáculo para verificação rápida
+    if (endPt.face === 'east') eStub.x += stubLen;
+    else if (endPt.face === 'west') eStub.x -= stubLen;
+    else if (endPt.face === 'north') eStub.y -= stubLen;
+    else if (endPt.face === 'south') eStub.y += stubLen;
+
+    const sx = this.snap(sStub.x);
+    const sy = this.snap(sStub.y);
+    const ex = this.snap(eStub.x);
+    const ey = this.snap(eStub.y);
+
+    if (sx === ex && sy === ey) return [startPt, sStub, eStub, endPt];
+
+    // Mapeamento de obstáculo para verificação rápida (1. Bounding Boxes com Padding de 20px)
     const obstacles = this.buildObstacleBoxes(currentConnId);
     const wireOccupancy = this.buildWireOccupancyMap(currentConnId);
 
@@ -137,7 +153,7 @@ class OrthogonalRouter {
     return this.buildFallbackManhattan(startPt, endPt);
   }
 
-  // --- RECONSTRUÇÃO E PURIFICAÇÃO DO CAMINHO ---
+  // --- RECONSTRUÇÃO E PURIFICAÇÃO DO CAMINHO (100% RETO ORTOGONAL 90° SEM TOLERÂNCIA A DESVIOS) ---
   reconstructPath(cameFrom, currentKey, startPt, endPt) {
     const rawPath = [];
     let curr = currentKey;
@@ -150,19 +166,32 @@ class OrthogonalRouter {
     rawPath.unshift(startPt);
     rawPath.push(endPt);
 
-    // Purificar pontos colineares (remover pontos desnecessários na mesma reta)
-    const cleanPath = [rawPath[0]];
+    // Garantir que cada segmento consecutivo seja 100% reto (ajustando x ou y para alinhar perfeitamente)
+    const alignedPath = [rawPath[0]];
 
-    for (let i = 1; i < rawPath.length - 1; i++) {
-      const prev = cleanPath[cleanPath.length - 1];
+    for (let i = 1; i < rawPath.length; i++) {
+      const prev = alignedPath[alignedPath.length - 1];
       const curr = rawPath[i];
-      const next = rawPath[i + 1];
 
-      // Se não estiver na mesma reta horizontal ou vertical, mantemos a curva de 90°
-      const isHorizontalSame = (prev.y === curr.y && curr.y === next.y);
-      const isVerticalSame = (prev.x === curr.x && curr.x === next.x);
+      // Se não for nem 100% horizontal nem 100% vertical, insere um ponto intermediário de 90° estrito
+      if (prev.x !== curr.x && prev.y !== curr.y) {
+        alignedPath.push({ x: curr.x, y: prev.y });
+      }
+      alignedPath.push(curr);
+    }
 
-      if (!isHorizontalSame && !isVerticalSame) {
+    // Purificar pontos colineares repetidos
+    const cleanPath = [alignedPath[0]];
+
+    for (let i = 1; i < alignedPath.length - 1; i++) {
+      const prev = cleanPath[cleanPath.length - 1];
+      const curr = alignedPath[i];
+      const next = alignedPath[i + 1];
+
+      const isHorizontal = (prev.y === curr.y && curr.y === next.y);
+      const isVertical = (prev.x === curr.x && curr.x === next.x);
+
+      if (!isHorizontal && !isVertical) {
         cleanPath.push(curr);
       }
     }
@@ -171,10 +200,10 @@ class OrthogonalRouter {
     return cleanPath;
   }
 
-  // --- MAPEAR OPACO DE COMPONENTES/ELEMENTOS (OBSTÁCULOS) ---
+  // --- MAPEAR OPACO DE COMPONENTES/ELEMENTOS (OBSTÁCULOS COM PADDING DE 20PX) ---
   buildObstacleBoxes(currentConnId) {
     const boxes = [];
-    const margin = 12; // Folga ao redor dos componentes
+    const margin = 20; // Padding de 20px para a linha nunca raspando na borda do retângulo
 
     this.model.entities.forEach(e => {
       boxes.push({

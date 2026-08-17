@@ -326,6 +326,29 @@ class CanvasRenderer {
       pairGroups.get(pairKey).push(conn);
     });
 
+    // Mapear quantas conexões chegam em cada face de cada elemento para Distribuição Dinâmica de Portas
+    const elementFaceConns = new Map();
+    this.model.connections.forEach(conn => {
+      const source = this.model.getElementById(conn.sourceId);
+      const target = this.model.getElementById(conn.targetId);
+      if (!source || !target) return;
+
+      const dx = target.x - source.x;
+      const dy = target.y - source.y;
+
+      const fSource = (conn.faceSource && conn.faceSource !== 'auto') ? conn.faceSource : ((Math.abs(dx) >= Math.abs(dy)) ? (dx >= 0 ? 'east' : 'west') : (dy >= 0 ? 'south' : 'north'));
+      const fTarget = (conn.faceTarget && conn.faceTarget !== 'auto') ? conn.faceTarget : ((Math.abs(dx) >= Math.abs(dy)) ? (dx >= 0 ? 'west' : 'east') : (dy >= 0 ? 'north' : 'south'));
+
+      const keyS = `${source.id}___${fSource}`;
+      const keyT = `${target.id}___${fTarget}`;
+
+      if (!elementFaceConns.has(keyS)) elementFaceConns.set(keyS, []);
+      if (!elementFaceConns.has(keyT)) elementFaceConns.set(keyT, []);
+
+      elementFaceConns.get(keyS).push({ conn, isSource: true });
+      elementFaceConns.get(keyT).push({ conn, isSource: false });
+    });
+
     pairGroups.forEach((conns) => {
       const count = conns.length;
 
@@ -337,41 +360,32 @@ class CanvasRenderer {
 
         const isSelected = this.selectedConnectionId === conn.id;
 
-        // Verificar se é uma conexão duplicada na mesma entidade/relacionamento
-        const relId = source.type === 'relationship' ? source.id : (target.type === 'relationship' ? target.id : null);
-        const entId = source.type === 'entity' ? source.id : (target.type === 'entity' ? target.id : null);
-        const multiKey = (relId && entId) ? `${relId}___${entId}` : null;
-        const sameEntConns = multiKey ? (relEntityConnCount.get(multiKey) || []) : [];
-        const isSelfRel = sameEntConns.length > 1;
-        const selfIndex = isSelfRel ? sameEntConns.indexOf(conn) : index;
-
-        // Calcular pontos de ancoragem nas bordas das formas (respeitando trava manual do usuário ou auto)
-        let startPt, endPt;
-
+        // Calcular face de entrada e saída
         const lockSource = (conn.faceSource && conn.faceSource !== 'auto') ? conn.faceSource : null;
         const lockTarget = (conn.faceTarget && conn.faceTarget !== 'auto') ? conn.faceTarget : null;
 
-        if (lockSource || lockTarget) {
-          startPt = this.calculateEdgeIntersection(source, target, lockSource);
-          endPt = this.calculateEdgeIntersection(target, source, lockTarget);
-        } else if (isSelfRel || count > 1) {
-          // Auto-relacionamento recursivo da mesma entidade: garantir saídas por faces totalmente opostas/diferentes
-          const facesEntity = ['east', 'north', 'west', 'south'];
-          const facesRel = ['west', 'south', 'east', 'north'];
+        const dx = target.x - source.x;
+        const dy = target.y - source.y;
+        const fSource = lockSource || ((Math.abs(dx) >= Math.abs(dy)) ? (dx >= 0 ? 'east' : 'west') : (dy >= 0 ? 'south' : 'north'));
+        const fTarget = lockTarget || ((Math.abs(dx) >= Math.abs(dy)) ? (dx >= 0 ? 'west' : 'east') : (dy >= 0 ? 'north' : 'south'));
 
-          const fEntity = facesEntity[selfIndex % facesEntity.length];
-          const fRel = facesRel[selfIndex % facesRel.length];
+        // Obter offset de porta para esta face
+        const sConns = elementFaceConns.get(`${source.id}___${fSource}`) || [];
+        const tConns = elementFaceConns.get(`${target.id}___${fTarget}`) || [];
 
-          startPt = this.calculateEdgeIntersection(source, target, fEntity);
-          endPt = this.calculateEdgeIntersection(target, source, fRel);
-        } else {
-          startPt = this.calculateEdgeIntersection(source, target);
-          endPt = this.calculateEdgeIntersection(target, source);
-        }
+        const sPortIndex = sConns.findIndex(c => c.conn.id === conn.id);
+        const tPortIndex = tConns.findIndex(c => c.conn.id === conn.id);
 
-        const dx = endPt.x - startPt.x;
-        const dy = endPt.y - startPt.y;
-        const len = Math.hypot(dx, dy) || 1;
+        const startPt = this.calculateEdgeIntersection(source, target, fSource, Math.max(0, sPortIndex), Math.max(1, sConns.length));
+        const endPt = this.calculateEdgeIntersection(target, source, fTarget, Math.max(0, tPortIndex), Math.max(1, tConns.length));
+
+        // Anexar face informada aos pontos para o A* saber o lado do Routing Stub
+        startPt.face = fSource;
+        endPt.face = fTarget;
+
+        const dxPt = endPt.x - startPt.x;
+        const dyPt = endPt.y - startPt.y;
+        const len = Math.hypot(dxPt, dyPt) || 1;
 
         // Calcular Ponto de Controle para offsets
         let ctrl = { x: (startPt.x + endPt.x) / 2, y: (startPt.y + endPt.y) / 2 };
@@ -580,8 +594,8 @@ class CanvasRenderer {
     this.labelsLayer.appendChild(text);
   }
 
-  // --- CÁLCULO DE PONTOS DE ANCORAGEM (CENTRO DAS ARESTAS OU DIAGONAL PARA ELIPSES) ---
-  calculateEdgeIntersection(elem, target, preferredFace = null) {
+  // --- CÁLCULO DE PONTOS DE ANCORAGEM (COM DISTRIBUIÇÃO DINÂMICA DE PORTAS E DESLOCAMENTO) ---
+  calculateEdgeIntersection(elem, target, preferredFace = null, portIndex = 0, totalPorts = 1) {
     const dx = target.x - elem.x;
     const dy = target.y - elem.y;
 
@@ -589,43 +603,40 @@ class CanvasRenderer {
       return { x: elem.x, y: elem.y };
     }
 
-    // 1. Entidades (Retângulo): Ancoragem FIXA exclusivamente no centro de uma das 4 arestas (Norte, Sul, Leste, Oeste)
+    // Calcular offset de distribuição da porta se houver mais de 1 cabo na mesma face
+    const spacing = 18; // 18px entre cada cabo
+    const portOffset = (totalPorts > 1) ? (portIndex - (totalPorts - 1) / 2) * spacing : 0;
+
+    // 1. Entidades (Retângulo): Ancoragem nas 4 arestas (Norte, Sul, Leste, Oeste) com offset de porta
     if (elem.type === 'entity') {
       const w = elem.width / 2;
       const h = elem.height / 2;
 
-      // Se houver uma face preferencial (para conexões duplas/auto-relacionamentos entrarem por uma face e saírem por outra)
-      if (preferredFace === 'east') return { x: elem.x + w, y: elem.y };
-      if (preferredFace === 'west') return { x: elem.x - w, y: elem.y };
-      if (preferredFace === 'north') return { x: elem.x, y: elem.y - h };
-      if (preferredFace === 'south') return { x: elem.x, y: elem.y + h };
-
-      if (Math.abs(dx) >= Math.abs(dy)) {
-        // Aresta Esquerda ou Direita (Leste / Oeste)
-        return { x: elem.x + Math.sign(dx) * w, y: elem.y };
-      } else {
-        // Aresta Superior ou Inferior (Norte / Sul)
-        return { x: elem.x, y: elem.y + Math.sign(dy) * h };
+      let face = preferredFace;
+      if (!face) {
+        face = (Math.abs(dx) >= Math.abs(dy)) ? (dx >= 0 ? 'east' : 'west') : (dy >= 0 ? 'south' : 'north');
       }
+
+      if (face === 'east') return { x: elem.x + w, y: elem.y + portOffset };
+      if (face === 'west') return { x: elem.x - w, y: elem.y + portOffset };
+      if (face === 'north') return { x: elem.x + portOffset, y: elem.y - h };
+      if (face === 'south') return { x: elem.x + portOffset, y: elem.y + h };
     }
 
-    // 2. Relacionamentos (Losango): Ancoragem FIXA nos 4 vértices das arestas (Norte, Sul, Leste, Oeste)
+    // 2. Relacionamentos (Losango): Ancoragem nos 4 vértices das arestas
     if (elem.type === 'relationship') {
       const w = elem.width / 2;
       const h = elem.height / 2;
 
-      if (preferredFace === 'east') return { x: elem.x + w, y: elem.y };
-      if (preferredFace === 'west') return { x: elem.x - w, y: elem.y };
-      if (preferredFace === 'north') return { x: elem.x, y: elem.y - h };
-      if (preferredFace === 'south') return { x: elem.x, y: elem.y + h };
-
-      if (Math.abs(dx) >= Math.abs(dy)) {
-        // Vértice Esquerda ou Direita
-        return { x: elem.x + Math.sign(dx) * w, y: elem.y };
-      } else {
-        // Vértice Topo ou Baixo
-        return { x: elem.x, y: elem.y + Math.sign(dy) * h };
+      let face = preferredFace;
+      if (!face) {
+        face = (Math.abs(dx) >= Math.abs(dy)) ? (dx >= 0 ? 'east' : 'west') : (dy >= 0 ? 'south' : 'north');
       }
+
+      if (face === 'east') return { x: elem.x + w, y: elem.y + portOffset };
+      if (face === 'west') return { x: elem.x - w, y: elem.y + portOffset };
+      if (face === 'north') return { x: elem.x + portOffset, y: elem.y - h };
+      if (face === 'south') return { x: elem.x + portOffset, y: elem.y + h };
     }
 
     // 3. Atributos (Elipse): Conexão direta na borda da elipse (Permite Diagonal)
