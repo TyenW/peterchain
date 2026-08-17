@@ -381,66 +381,16 @@ class CanvasRenderer {
         const hasTotalTarget = conn.isTotalTarget !== undefined ? Boolean(conn.isTotalTarget) : hasTotalLegacy;
         const lineClass = `connection-line ${hasTotalLegacy ? 'total' : ''} ${isSelected ? 'selected' : ''}`;
 
-        // SEGUNDO A REGRA: Roteador estilo Logisim (Ortogonal Estrito de 90° com Saída Perpendicular do Pino)
+        // SEGUNDO A REGRA: Roteamento de Fios de Alta Precisão com Algoritmo A* Baseado em Custos (Logisim / EDA Router)
         const isAttrConn = source.type === 'attribute' || target.type === 'attribute';
         let pathPoints = [];
 
         if (!isAttrConn) {
-          // Determinar direção real de saída baseada nos pontos de ancoragem startPt e endPt
-          const startFace = (startPt.x > source.x) ? 'east' : ((startPt.x < source.x) ? 'west' : ((startPt.y > source.y) ? 'south' : 'north'));
-          const endFace = (endPt.x > target.x) ? 'east' : ((endPt.x < target.x) ? 'west' : ((endPt.y > target.y) ? 'south' : 'north'));
-
-          const stubLen = 24; // Comprimento da saída perpendicular do pino (estilo Logisim)
-          let p1 = { ...startPt };
-          let p2 = { ...endPt };
-
-          if (startFace === 'east') p1.x += stubLen;
-          else if (startFace === 'west') p1.x -= stubLen;
-          else if (startFace === 'north') p1.y -= stubLen;
-          else if (startFace === 'south') p1.y += stubLen;
-
-          if (endFace === 'east') p2.x += stubLen;
-          else if (endFace === 'west') p2.x -= stubLen;
-          else if (endFace === 'north') p2.y -= stubLen;
-          else if (endFace === 'south') p2.y += stubLen;
-
-          // Roteamento Ortogonal (Logisim Manhattan Wire) entre p1 e p2
-          pathPoints.push(startPt);
-          pathPoints.push(p1);
-
-          const midOffset = conn.midOffset !== undefined ? conn.midOffset : 0.5;
-
-          if (startFace === 'east' || startFace === 'west') {
-            if (endFace === 'east' || endFace === 'west') {
-              const midX = Math.round(p1.x + (p2.x - p1.x) * midOffset);
-              pathPoints.push({ x: midX, y: p1.y });
-              pathPoints.push({ x: midX, y: p2.y });
-            } else {
-              pathPoints.push({ x: p2.x, y: p1.y });
-            }
-          } else {
-            if (endFace === 'north' || endFace === 'south') {
-              const midY = Math.round(p1.y + (p2.y - p1.y) * midOffset);
-              pathPoints.push({ x: p1.x, y: midY });
-              pathPoints.push({ x: p2.x, y: midY });
-            } else {
-              pathPoints.push({ x: p1.x, y: p2.y });
-            }
+          if (!this.orthogonalRouter) {
+            this.orthogonalRouter = new OrthogonalRouter(this.model, 20);
           }
-
-          pathPoints.push(p2);
-          pathPoints.push(endPt);
-
-          // Purificar pontos duplicados/colineares no caminho
-          const cleanPts = [pathPoints[0]];
-          for (let k = 1; k < pathPoints.length; k++) {
-            const last = cleanPts[cleanPts.length - 1];
-            const curr = pathPoints[k];
-            if (Math.abs(last.x - curr.x) > 1 || Math.abs(last.y - curr.y) > 1) {
-              cleanPts.push(curr);
-            }
-          }
-          pathPoints = cleanPts;
+          // Rodar A* com matriz de custos de travessia e penalidade de curvas/sobreposição
+          pathPoints = this.orthogonalRouter.findPath(startPt, endPt, conn.id);
         } else {
           // Apenas Atributos (Elipses) usam reta direta
           pathPoints = [startPt, endPt];
