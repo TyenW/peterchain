@@ -271,6 +271,32 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // Botões de Snippets / Auto-completar Rápidos
+  document.querySelectorAll('.btn-insert-snippet').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const rawSnippet = btn.getAttribute('data-snippet');
+      if (!rawSnippet) return;
+
+      const snippet = rawSnippet.replace(/\\n/g, '\n');
+      const start = nlpInput.selectionStart;
+      const end = nlpInput.selectionEnd;
+      const text = nlpInput.value;
+
+      let prefix = '';
+      if (start > 0 && text[start - 1] !== '\n') {
+        prefix = '\n\n';
+      } else if (start === 0 && text.length > 0) {
+        prefix = '';
+      }
+
+      const insertText = prefix + snippet + '\n';
+      nlpInput.value = text.substring(0, start) + insertText + text.substring(end);
+      nlpInput.focus();
+      const newPos = start + insertText.length;
+      nlpInput.setSelectionRange(newPos, newPos);
+    });
+  });
+
   const modalProjects = document.getElementById('modal-projects');
   const btnProjectsModal = document.getElementById('btn-projects-modal');
   btnProjectsModal.addEventListener('click', () => {

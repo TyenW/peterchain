@@ -97,6 +97,17 @@
             </div>
           </div>
           
+          <!-- Snippets de Inserção Rápida / Autocompletar -->
+          <div class="snippet-toolbar" style="padding: 6px 10px; background: var(--bg-darker); border-bottom: 1px solid var(--border-color); display: flex; gap: 6px; overflow-x: auto; font-size: 11px;">
+            <span style="color: var(--text-dim); align-self: center; font-weight: 600; font-size: 10px; text-transform: uppercase;">Inserir:</span>
+            <button class="btn-insert-snippet" data-snippet="Entidade {\n  *ID,\n  Nome\n}" title="Inserir bloco de Entidade Forte">+ Entidade</button>
+            <button class="btn-insert-snippet" data-snippet="entidade fraca Dependente {\n  _Codigo_,\n  Nome\n}" title="Inserir bloco de Entidade Fraca">+ Entidade Fraca</button>
+            <button class="btn-insert-snippet" data-snippet="Nome[PrimeiroNome, Sobrenome]" title="Inserir Atributo Composto">+ Atrib. Composto</button>
+            <button class="btn-insert-snippet" data-snippet="pertence (EntidadeA 1 : N EntidadeB)" title="Inserir Relacionamento Simples">+ Relacionamento</button>
+            <button class="btn-insert-snippet" data-snippet="ObrigCompoe (EntidadeA 1 : N EntidadeB)" title="Inserir Relacionamento Obrigatório (Linha Dupla)">+ Linha Dupla</button>
+            <button class="btn-insert-snippet" data-snippet="especializacao d (Super -> Sub1, Sub2)" title="Inserir Especialização EER">+ Herança EER</button>
+          </div>
+          
           <textarea id="nlp-input" style="font-family:var(--font-mono); font-size:12px;" placeholder="// Sintaxe do Editor de Código ER / Pseudo-Comandos:
 
 // 1. Entidades e Atributos:
@@ -360,23 +371,75 @@ especializacao d (Pessoa -> Aluno, Professor)
 
         <div class="cmd-section">
           
+          <!-- 0. Tabela Resumo de Símbolos -->
+          <div class="cmd-category-card" style="border-color: var(--primary);">
+            <div class="cmd-category-title">📖 Resumo Rápido de Símbolos & Notação Peter Chen</div>
+            <div class="cmd-category-desc">
+              Tabela de consulta rápida de toda a sintaxe suportada pelo parser:
+            </div>
+            <div style="overflow-x: auto; margin-top: 10px;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: left; background: var(--bg-darker); border-radius: 6px; border: 1px solid var(--border-color);">
+                <thead>
+                  <tr style="border-bottom: 1px solid var(--border-color); background: rgba(255,255,255,0.03);">
+                    <th style="padding: 8px 12px; color: var(--accent-light);">Símbolo / Sintaxe</th>
+                    <th style="padding: 8px 12px; color: var(--text-main);">Significado</th>
+                    <th style="padding: 8px 12px; color: var(--accent-light);">Símbolo / Sintaxe</th>
+                    <th style="padding: 8px 12px; color: var(--text-main);">Significado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="border-bottom: 1px solid var(--border-color);">
+                    <td style="padding: 8px 12px;"><code>NomeEntidade { ... }</code></td>
+                    <td style="padding: 8px 12px; color: var(--text-muted);">Entidade Forte (Retângulo)</td>
+                    <td style="padding: 8px 12px;"><code>entidade fraca Nome { ... }</code></td>
+                    <td style="padding: 8px 12px; color: var(--text-muted);">Entidade Fraca (Retângulo Duplo)</td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid var(--border-color);">
+                    <td style="padding: 8px 12px;"><code>*Atributo</code> ou <code>#Atributo</code></td>
+                    <td style="padding: 8px 12px; color: var(--text-muted);">Chave Primária (Sublinhado Sólido)</td>
+                    <td style="padding: 8px 12px;"><code>_Atributo_</code></td>
+                    <td style="padding: 8px 12px; color: var(--text-muted);">Chave Parcial (Sublinhado Tracejado)</td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid var(--border-color);">
+                    <td style="padding: 8px 12px;"><code>~Atributo</code></td>
+                    <td style="padding: 8px 12px; color: var(--text-muted);">Atributo Derivado (Elipse Tracejada)</td>
+                    <td style="padding: 8px 12px;"><code>++Atributo</code> ou <code>Atrib[]</code></td>
+                    <td style="padding: 8px 12px; color: var(--text-muted);">Multivalorado (Elipse Dupla)</td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid var(--border-color);">
+                    <td style="padding: 8px 12px;"><code>Nome[Sub1, Sub2]</code> / <code>(Sub1, Sub2)</code></td>
+                    <td style="padding: 8px 12px; color: var(--text-muted);">Atributo Composto</td>
+                    <td style="padding: 8px 12px;"><code>relacionamento fraco nome(...)</code></td>
+                    <td style="padding: 8px 12px; color: var(--text-muted);">Relacionamento Fraco (Losango Duplo)</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 12px;"><code>ObrigNome(...)</code> / <code>obrigatorio ...</code></td>
+                    <td style="padding: 8px 12px; color: var(--text-muted);">Participação Total / Obrigatoriedade (Linha Dupla)</td>
+                    <td style="padding: 8px 12px;"><code>especializacao d|o (A -> B, C)</code></td>
+                    <td style="padding: 8px 12px; color: var(--text-muted);">Especialização EER (Círculo d/o/u)</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           <!-- 1. Entidades Fortes & Atributos -->
           <div class="cmd-category-card">
             <div class="cmd-category-title">📌 1. Entidades Fortes e Tipos de Atributos</div>
             <div class="cmd-category-desc">
-              Define uma entidade regular (retângulo) com seus atributos. Prefixos: <code>*</code> (Chave Primária), <code>~</code> (Derivado), <code>++</code> (Multivalorado).
+              Define uma entidade regular (retângulo) com seus atributos. Prefixos: <code>*</code> (Chave Primária), <code>~</code> (Derivado), <code>++</code> (Multivalorado), e <code>Nome[Sub1, Sub2]</code> ou <code>Nome(Sub1, Sub2)</code> para Atributos Compostos.
             </div>
             <div class="cmd-snippet-box">
               <div class="cmd-snippet-header">
-                <span class="cmd-snippet-label">Exemplo: Entidade Forte</span>
+                <span class="cmd-snippet-label">Exemplo: Entidade Forte e Atributos</span>
                 <div class="cmd-actions">
-                  <button class="btn-copy-code" data-code="Funcionario {&#10;  *CPF,&#10;  Nome,&#10;  ~Idade,&#10;  ++Telefones&#10;}">📋 Copiar</button>
-                  <button class="btn-load-code" data-code="Funcionario {&#10;  *CPF,&#10;  Nome,&#10;  ~Idade,&#10;  ++Telefones&#10;}">▶ Testar no Editor</button>
+                  <button class="btn-copy-code" data-code="Aluno {&#10;  *CPF,&#10;  Nome[PrimeiroNome, Sobrenome],&#10;  ~Idade,&#10;  ++Telefones&#10;}">📋 Copiar</button>
+                  <button class="btn-load-code" data-code="Aluno {&#10;  *CPF,&#10;  Nome[PrimeiroNome, Sobrenome],&#10;  ~Idade,&#10;  ++Telefones&#10;}">▶ Testar no Editor</button>
                 </div>
               </div>
-              <pre class="cmd-code-block">Funcionario {
+              <pre class="cmd-code-block">Aluno {
   *CPF,
-  Nome,
+  Nome[PrimeiroNome, Sobrenome],
   ~Idade,
   ++Telefones
 }</pre>
@@ -404,22 +467,22 @@ especializacao d (Pessoa -> Aluno, Professor)
             </div>
           </div>
 
-          <!-- 3. Relacionamentos Simples e Fracos -->
+          <!-- 3. Relacionamentos Simples, Fracos e Obrigatoriedade -->
           <div class="cmd-category-card">
-            <div class="cmd-category-title">🔗 3. Relacionamentos e Cardinalidades</div>
+            <div class="cmd-category-title">🔗 3. Relacionamentos, Cardinalidades e Linha Dupla</div>
             <div class="cmd-category-desc">
-              Associações entre entidades com cardinalidades (<code>1:1</code>, <code>1:N</code>, <code>N:N</code>). Para relacionamentos identificadores fracos, adicione <code>relacionamento fraco</code> antes do nome.
+              Associações com cardinalidades (<code>1:1</code>, <code>1:N</code>, <code>N:N</code>). Use <code>relacionamento fraco</code> para entidades fracas, ou prefixos como <code>Obrig...</code> / <code>obrigatorio ...</code> para Participação Total (Linha Dupla).
             </div>
             <div class="cmd-snippet-box">
               <div class="cmd-snippet-header">
                 <span class="cmd-snippet-label">Exemplo: Relacionamentos</span>
                 <div class="cmd-actions">
-                  <button class="btn-copy-code" data-code="pertence (Curso N : 1 Area)&#10;matricula (Aluno N : N Curso)&#10;relacionamento fraco compoe (Curso 1 : N Modulo)">📋 Copiar</button>
-                  <button class="btn-load-code" data-code="pertence (Curso N : 1 Area)&#10;matricula (Aluno N : N Curso)&#10;relacionamento fraco compoe (Curso 1 : N Modulo)">▶ Testar no Editor</button>
+                  <button class="btn-copy-code" data-code="pertence (Curso N : 1 Area)&#10;ObrigCompoe (Curso 1 : N Modulo)&#10;relacionamento fraco compoe (Curso 1 : N Modulo)">📋 Copiar</button>
+                  <button class="btn-load-code" data-code="pertence (Curso N : 1 Area)&#10;ObrigCompoe (Curso 1 : N Modulo)&#10;relacionamento fraco compoe (Curso 1 : N Modulo)">▶ Testar no Editor</button>
                 </div>
               </div>
               <pre class="cmd-code-block">pertence (Curso N : 1 Area)
-matricula (Aluno N : N Curso)
+ObrigCompoe (Curso 1 : N Modulo)
 relacionamento fraco compoe (Curso 1 : N Modulo)</pre>
             </div>
           </div>

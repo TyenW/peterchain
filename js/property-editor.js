@@ -471,6 +471,28 @@ class PropertyEditor {
         </div>
       ` : ''}
 
+      <div class="form-group" style="border-top:1px solid var(--border-color); pt:10px; margin-top:10px;">
+        <label>🔒 Trava de Aresta de Origem (Entrada/Saída)</label>
+        <select id="prop-face-source">
+          <option value="auto" ${(!conn.faceSource || conn.faceSource === 'auto') ? 'selected' : ''}>Automático (Auto-orientado)</option>
+          <option value="east" ${conn.faceSource === 'east' ? 'selected' : ''}>Leste / Direita (East)</option>
+          <option value="west" ${conn.faceSource === 'west' ? 'selected' : ''}>Oeste / Esquerda (West)</option>
+          <option value="north" ${conn.faceSource === 'north' ? 'selected' : ''}>Norte / Cima (North)</option>
+          <option value="south" ${conn.faceSource === 'south' ? 'selected' : ''}>Sul / Baixo (South)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>🔒 Trava de Aresta de Destino (Entrada/Saída)</label>
+        <select id="prop-face-target">
+          <option value="auto" ${(!conn.faceTarget || conn.faceTarget === 'auto') ? 'selected' : ''}>Automático (Auto-orientado)</option>
+          <option value="east" ${conn.faceTarget === 'east' ? 'selected' : ''}>Leste / Direita (East)</option>
+          <option value="west" ${conn.faceTarget === 'west' ? 'selected' : ''}>Oeste / Esquerda (West)</option>
+          <option value="north" ${conn.faceTarget === 'north' ? 'selected' : ''}>Norte / Cima (North)</option>
+          <option value="south" ${conn.faceTarget === 'south' ? 'selected' : ''}>Sul / Baixo (South)</option>
+        </select>
+      </div>
+
       <div class="form-group" style="margin-top: 10px;">
         <button id="prop-btn-delete" class="btn btn-secondary danger" style="width:100%; justify-content:center;">Excluir Conexão</button>
       </div>
@@ -510,6 +532,16 @@ class PropertyEditor {
         this.model.notify();
       });
     }
+
+    document.getElementById('prop-face-source').addEventListener('change', (e) => {
+      conn.faceSource = e.target.value;
+      this.model.notify();
+    });
+
+    document.getElementById('prop-face-target').addEventListener('change', (e) => {
+      conn.faceTarget = e.target.value;
+      this.model.notify();
+    });
 
     document.getElementById('prop-btn-delete').addEventListener('click', () => {
       this.model.removeConnection(conn.id);

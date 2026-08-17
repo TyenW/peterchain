@@ -298,6 +298,23 @@ class CanvasRenderer {
     this.connectionsLayer.innerHTML = '';
     this.labelsLayer.innerHTML = '';
 
+    // Mapear quantas conexões cada relacionamento possui por entidade para detectar auto-relacionamentos
+    const relEntityConnCount = new Map();
+    this.model.connections.forEach(conn => {
+      const source = this.model.getElementById(conn.sourceId);
+      const target = this.model.getElementById(conn.targetId);
+      if (!source || !target) return;
+
+      const relId = source.type === 'relationship' ? source.id : (target.type === 'relationship' ? target.id : null);
+      const entId = source.type === 'entity' ? source.id : (target.type === 'entity' ? target.id : null);
+
+      if (relId && entId) {
+        const key = `${relId}___${entId}`;
+        if (!relEntityConnCount.has(key)) relEntityConnCount.set(key, []);
+        relEntityConnCount.get(key).push(conn);
+      }
+    });
+
     // Agrupar conexões pelo par de nós (sem ordem)
     const pairGroups = new Map();
     this.model.connections.forEach(conn => {
@@ -320,144 +337,257 @@ class CanvasRenderer {
 
         const isSelected = this.selectedConnectionId === conn.id;
 
-        // Calcular pontos de ancoragem nas bordas das formas
-        const startPt = this.calculateEdgeIntersection(source, target);
-        const endPt = this.calculateEdgeIntersection(target, source);
+        // Verificar se é uma conexão duplicada na mesma entidade/relacionamento
+        const relId = source.type === 'relationship' ? source.id : (target.type === 'relationship' ? target.id : null);
+        const entId = source.type === 'entity' ? source.id : (target.type === 'entity' ? target.id : null);
+        const multiKey = (relId && entId) ? `${relId}___${entId}` : null;
+        const sameEntConns = multiKey ? (relEntityConnCount.get(multiKey) || []) : [];
+        const isSelfRel = sameEntConns.length > 1;
+        const selfIndex = isSelfRel ? sameEntConns.indexOf(conn) : index;
+
+        // Calcular pontos de ancoragem nas bordas das formas (respeitando trava manual do usuário ou auto)
+        let startPt, endPt;
+
+        const lockSource = (conn.faceSource && conn.faceSource !== 'auto') ? conn.faceSource : null;
+        const lockTarget = (conn.faceTarget && conn.faceTarget !== 'auto') ? conn.faceTarget : null;
+
+        if (lockSource || lockTarget) {
+          startPt = this.calculateEdgeIntersection(source, target, lockSource);
+          endPt = this.calculateEdgeIntersection(target, source, lockTarget);
+        } else if (isSelfRel || count > 1) {
+          // Auto-relacionamento recursivo da mesma entidade: garantir saídas por faces totalmente opostas/diferentes
+          const facesEntity = ['east', 'north', 'west', 'south'];
+          const facesRel = ['west', 'south', 'east', 'north'];
+
+          const fEntity = facesEntity[selfIndex % facesEntity.length];
+          const fRel = facesRel[selfIndex % facesRel.length];
+
+          startPt = this.calculateEdgeIntersection(source, target, fEntity);
+          endPt = this.calculateEdgeIntersection(target, source, fRel);
+        } else {
+          startPt = this.calculateEdgeIntersection(source, target);
+          endPt = this.calculateEdgeIntersection(target, source);
+        }
 
         const dx = endPt.x - startPt.x;
         const dy = endPt.y - startPt.y;
         const len = Math.hypot(dx, dy) || 1;
 
-        // Calcular Ponto de Controle (P1) para curva Bezier
-        let ctrl;
-        if (count === 1) {
-          ctrl = { x: (startPt.x + endPt.x) / 2, y: (startPt.y + endPt.y) / 2 };
-        } else {
-          // Múltiplas conexões entre o mesmo par de elementos: deslocamento perpendicular
-          const offsetStep = 50; // Deslocamento de 50px por linha
-          const offset = (index - (count - 1) / 2) * offsetStep;
-
-          const nx = -dy / len;
-          const ny = dx / len;
-
-          ctrl = {
-            x: (startPt.x + endPt.x) / 2 + nx * offset,
-            y: (startPt.y + endPt.y) / 2 + ny * offset
-          };
-        }
+        // Calcular Ponto de Controle para offsets
+        let ctrl = { x: (startPt.x + endPt.x) / 2, y: (startPt.y + endPt.y) / 2 };
 
         const hasTotalLegacy = Boolean(conn.isTotal);
         const hasTotalSource = conn.isTotalSource !== undefined ? Boolean(conn.isTotalSource) : hasTotalLegacy;
         const hasTotalTarget = conn.isTotalTarget !== undefined ? Boolean(conn.isTotalTarget) : hasTotalLegacy;
         const lineClass = `connection-line ${hasTotalLegacy ? 'total' : ''} ${isSelected ? 'selected' : ''}`;
 
-        // Renderizar caminho da conexão (Reta ou Curva Bezier Quadrática)
+        // SEGUNDO A REGRA: Roteador estilo Logisim (Ortogonal Estrito de 90° com Saída Perpendicular do Pino)
+        const isAttrConn = source.type === 'attribute' || target.type === 'attribute';
+        let pathPoints = [];
+
+        if (!isAttrConn) {
+          // Determinar direção real de saída baseada nos pontos de ancoragem startPt e endPt
+          const startFace = (startPt.x > source.x) ? 'east' : ((startPt.x < source.x) ? 'west' : ((startPt.y > source.y) ? 'south' : 'north'));
+          const endFace = (endPt.x > target.x) ? 'east' : ((endPt.x < target.x) ? 'west' : ((endPt.y > target.y) ? 'south' : 'north'));
+
+          const stubLen = 24; // Comprimento da saída perpendicular do pino (estilo Logisim)
+          let p1 = { ...startPt };
+          let p2 = { ...endPt };
+
+          if (startFace === 'east') p1.x += stubLen;
+          else if (startFace === 'west') p1.x -= stubLen;
+          else if (startFace === 'north') p1.y -= stubLen;
+          else if (startFace === 'south') p1.y += stubLen;
+
+          if (endFace === 'east') p2.x += stubLen;
+          else if (endFace === 'west') p2.x -= stubLen;
+          else if (endFace === 'north') p2.y -= stubLen;
+          else if (endFace === 'south') p2.y += stubLen;
+
+          // Roteamento Ortogonal (Logisim Manhattan Wire) entre p1 e p2
+          pathPoints.push(startPt);
+          pathPoints.push(p1);
+
+          const midOffset = conn.midOffset !== undefined ? conn.midOffset : 0.5;
+
+          if (startFace === 'east' || startFace === 'west') {
+            if (endFace === 'east' || endFace === 'west') {
+              const midX = Math.round(p1.x + (p2.x - p1.x) * midOffset);
+              pathPoints.push({ x: midX, y: p1.y });
+              pathPoints.push({ x: midX, y: p2.y });
+            } else {
+              pathPoints.push({ x: p2.x, y: p1.y });
+            }
+          } else {
+            if (endFace === 'north' || endFace === 'south') {
+              const midY = Math.round(p1.y + (p2.y - p1.y) * midOffset);
+              pathPoints.push({ x: p1.x, y: midY });
+              pathPoints.push({ x: p2.x, y: midY });
+            } else {
+              pathPoints.push({ x: p1.x, y: p2.y });
+            }
+          }
+
+          pathPoints.push(p2);
+          pathPoints.push(endPt);
+
+          // Purificar pontos duplicados/colineares no caminho
+          const cleanPts = [pathPoints[0]];
+          for (let k = 1; k < pathPoints.length; k++) {
+            const last = cleanPts[cleanPts.length - 1];
+            const curr = pathPoints[k];
+            if (Math.abs(last.x - curr.x) > 1 || Math.abs(last.y - curr.y) > 1) {
+              cleanPts.push(curr);
+            }
+          }
+          pathPoints = cleanPts;
+        } else {
+          // Apenas Atributos (Elipses) usam reta direta
+          pathPoints = [startPt, endPt];
+        }
+
+        // Construir string de comando SVG d
+        const d = pathPoints.map((pt, i) => (i === 0 ? `M ${pt.x} ${pt.y}` : `L ${pt.x} ${pt.y}`)).join(' ');
+
+        // Caminho invisível largo de captura de clique (Hit Area de 20px)
+        const hitPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        hitPath.setAttribute('d', d);
+        hitPath.setAttribute('fill', 'none');
+        hitPath.setAttribute('stroke', 'transparent');
+        hitPath.setAttribute('stroke-width', '20');
+        hitPath.setAttribute('class', 'connection-line connection-hitarea');
+        hitPath.setAttribute('data-conn-id', conn.id);
+        hitPath.style.cursor = 'pointer';
+        this.connectionsLayer.appendChild(hitPath);
+
+        // Caminho visual principal
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        const d = `M ${startPt.x} ${startPt.y} Q ${ctrl.x} ${ctrl.y} ${endPt.x} ${endPt.y}`;
         path.setAttribute('d', d);
         path.setAttribute('fill', 'none');
         path.setAttribute('class', lineClass);
         path.setAttribute('data-conn-id', conn.id);
+        path.style.cursor = 'pointer';
 
         this.connectionsLayer.appendChild(path);
 
-        // Participação total por lado: linha paralela ao longo da curva
-        if (hasTotalSource) {
-          this.renderTotalParticipationCurve(startPt, ctrl, endPt, 0.0, 0.55, isSelected, conn.id);
-        }
-        if (hasTotalTarget) {
-          this.renderTotalParticipationCurve(startPt, ctrl, endPt, 0.45, 1.0, isSelected, conn.id);
+        // Participação total por lado: linha paralela duplicada que ACOMPANHA exatamente a forma da linha
+        const isTotal = hasTotalSource || hasTotalTarget || hasTotalLegacy;
+        if (isTotal) {
+          this.renderParallelPath(pathPoints, 5, isSelected, conn.id);
         }
 
-        // Renderizar rótulo de cardinalidade formatado como par (ex: 1:N, N:N, 1:1, N:1)
-        const formattedCard = this.getFormattedCardinality(conn);
-        if (formattedCard) {
-          const pt = this.getQuadraticBezierPoint(startPt, ctrl, endPt, 0.3);
-          this.renderCardinalityBadgeAt(formattedCard, pt.x, pt.y);
+        // Renderizar cardinalidade individual perto do losango do relacionamento (máxima cardinalidade da ponta)
+        const relIsTarget = target.type === 'relationship';
+        const relIsSource = source.type === 'relationship';
+        const cardValue = conn.cardinalitySource || conn.cardinalityTarget;
+
+        if (cardValue) {
+          // Ponto de ancoragem da cardinalidade no segmento final próximo ao losango do relacionamento
+          const relPt = relIsTarget ? endPt : startPt;
+          const neighborPt = relIsTarget ? pathPoints[pathPoints.length - 2] : pathPoints[1];
+
+          // 25px antes de chegar no losango ao longo da reta final
+          const segDx = relPt.x - neighborPt.x;
+          const segDy = relPt.y - neighborPt.y;
+          const segLen = Math.hypot(segDx, segDy) || 1;
+
+          const cardX = relPt.x - (segDx / segLen) * 28 + (-segDy / segLen) * 14;
+          const cardY = relPt.y - (segDy / segLen) * 28 + (segDx / segLen) * 14;
+
+          this.renderCardinalityBadgeAt(cardValue, cardX, cardY);
         }
 
-        // Renderizar rótulos de Papel (Role names) nas conexões se definidos
-        if (conn.roleSource) {
-          const pt = this.getQuadraticBezierPoint(startPt, ctrl, endPt, 0.5);
-          this.renderRoleLabelAt(conn.roleSource, pt.x, pt.y - 14);
-        }
-        if (conn.roleTarget) {
-          const pt = this.getQuadraticBezierPoint(startPt, ctrl, endPt, 0.7);
-          this.renderRoleLabelAt(conn.roleTarget, pt.x, pt.y - 14);
+        // Renderizar rótulos de Papel (Role names) nas conexões se definidos (perto da entidade)
+        const roleText = conn.roleSource || conn.roleTarget;
+        if (roleText) {
+          const entPt = relIsTarget ? startPt : endPt;
+          const neighborPt = relIsTarget ? pathPoints[1] : pathPoints[pathPoints.length - 2];
+          const segDx = neighborPt.x - entPt.x;
+          const segDy = neighborPt.y - entPt.y;
+          const segLen = Math.hypot(segDx, segDy) || 1;
+
+          const roleX = entPt.x + (segDx / segLen) * 35;
+          const roleY = entPt.y + (segDy / segLen) * 35 - 12;
+
+          this.renderRoleLabelAt(roleText, roleX, roleY);
         }
       });
     });
   }
 
-  // --- OBTENÇÃO DE RATIO DE CARDINALIDADE FORMATADO (1:N, N:N, 1:1, N:1) ---
-  getFormattedCardinality(conn) {
-    if (conn.cardinalitySource && conn.cardinalityTarget) {
-      return `${conn.cardinalitySource}:${conn.cardinalityTarget}`;
+  // --- DESENHAR CAMINHO PARALELO OBRIGATÓRIO PERFEITO (MITER JOIN 90°) ---
+  renderParallelPath(points, offsetDistance, isSelected, connId) {
+    if (!points || points.length < 2) return;
+
+    // Se for apenas um segmento reto (2 pontos)
+    if (points.length === 2) {
+      const p1 = points[0];
+      const p2 = points[1];
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len;
+      const ny = dx / len;
+
+      const d = `M ${p1.x + nx * offsetDistance} ${p1.y + ny * offsetDistance} L ${p2.x + nx * offsetDistance} ${p2.y + ny * offsetDistance}`;
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', d);
+      path.setAttribute('fill', 'none');
+      path.setAttribute('class', `connection-line total-side ${isSelected ? 'selected' : ''}`);
+      path.setAttribute('data-conn-id', connId);
+      this.connectionsLayer.appendChild(path);
+      return;
     }
 
-    const primaryCard = conn.cardinalitySource || conn.cardinalityTarget;
-    if (!primaryCard) return null;
+    // Para caminhos com 90° (3 ou 4 pontos), calcular normais dos segmentos
+    const parallelPoints = [];
+    const segments = [];
 
-    // Se já for um par (ex: "1:N")
-    if (primaryCard.includes(':')) return primaryCard;
+    for (let i = 0; i < points.length - 1; i++) {
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const len = Math.hypot(dx, dy) || 1;
+      segments.push({
+        p1, p2,
+        nx: -dy / len,
+        ny: dx / len
+      });
+    }
 
-    // Buscar a conexão irmã no mesmo relacionamento para formar o par (ex: 1:N, N:1)
-    const relId = [conn.sourceId, conn.targetId].find(id => {
-      const elem = this.model.getElementById(id);
-      return elem && elem.type === 'relationship';
+    // Primeiro ponto (offset normal do 1º segmento)
+    parallelPoints.push({
+      x: points[0].x + segments[0].nx * offsetDistance,
+      y: points[0].y + segments[0].ny * offsetDistance
     });
 
-    if (relId) {
-      const siblingConns = this.model.connections.filter(c => c.id !== conn.id && (c.sourceId === relId || c.targetId === relId));
-      for (const sib of siblingConns) {
-        const sibCard = sib.cardinalitySource || sib.cardinalityTarget;
-        if (sibCard) {
-          const cleanSibCard = sibCard.includes(':') ? sibCard.split(':')[0] : sibCard;
-          return `${primaryCard}:${cleanSibCard}`;
-        }
-      }
+    // Pontos intermediários de curva 90° (Miter Join Offset)
+    for (let i = 0; i < segments.length - 1; i++) {
+      const s1 = segments[i];
+      const s2 = segments[i + 1];
+      const corner = points[i + 1];
+
+      // Miter vector (soma das normais dos dois segmentos adjacentes)
+      const mx = s1.nx + s2.nx;
+      const my = s1.ny + s2.ny;
+
+      // Interseção exata no canto de 90°
+      parallelPoints.push({
+        x: corner.x + (mx > 0 ? offsetDistance : (mx < 0 ? -offsetDistance : 0)),
+        y: corner.y + (my > 0 ? offsetDistance : (my < 0 ? -offsetDistance : 0))
+      });
     }
 
-    // Formato padrão em dupla
-    if (primaryCard === 'N' || primaryCard === 'M') return `${primaryCard}:1`;
-    if (primaryCard === '1') return `1:N`;
+    // Último ponto (offset normal do último segmento)
+    const lastSeg = segments[segments.length - 1];
+    const lastPt = points[points.length - 1];
+    parallelPoints.push({
+      x: lastPt.x + lastSeg.nx * offsetDistance,
+      y: lastPt.y + lastSeg.ny * offsetDistance
+    });
 
-    return primaryCard;
-  }
-
-  getQuadraticBezierPoint(p0, p1, p2, t) {
-    const oneMinusT = 1 - t;
-    return {
-      x: oneMinusT * oneMinusT * p0.x + 2 * oneMinusT * t * p1.x + t * t * p2.x,
-      y: oneMinusT * oneMinusT * p0.y + 2 * oneMinusT * t * p1.y + t * t * p2.y
-    };
-  }
-
-  renderTotalParticipationCurve(p0, p1, p2, tStart, tEnd, isSelected, connId) {
-    const steps = 8;
-    let d = '';
-    const offsetDistance = 3;
-
-    for (let i = 0; i <= steps; i++) {
-      const t = tStart + (tEnd - tStart) * (i / steps);
-      const pt = this.getQuadraticBezierPoint(p0, p1, p2, t);
-
-      // Tangente da curva
-      const oneMinusT = 1 - t;
-      const tx = 2 * oneMinusT * (p1.x - p0.x) + 2 * t * (p2.x - p1.x);
-      const ty = 2 * oneMinusT * (p1.y - p0.y) + 2 * t * (p2.y - p1.y);
-      const tLen = Math.hypot(tx, ty) || 1;
-
-      // Normal da curva
-      const nx = -ty / tLen;
-      const ny = tx / tLen;
-
-      const ox = pt.x + nx * offsetDistance;
-      const oy = pt.y + ny * offsetDistance;
-
-      if (i === 0) d += `M ${ox} ${oy}`;
-      else d += ` L ${ox} ${oy}`;
-    }
+    const d = parallelPoints.map((pt, i) => (i === 0 ? `M ${pt.x} ${pt.y}` : `L ${pt.x} ${pt.y}`)).join(' ');
 
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', d);
@@ -500,44 +630,57 @@ class CanvasRenderer {
     this.labelsLayer.appendChild(text);
   }
 
-  // --- CÁLCULO DE INTERSEÇÃO DE BORDAS DAS FORMAS (ROBUSTO E SEM NaN) ---
-  calculateEdgeIntersection(elem, target) {
+  // --- CÁLCULO DE PONTOS DE ANCORAGEM (CENTRO DAS ARESTAS OU DIAGONAL PARA ELIPSES) ---
+  calculateEdgeIntersection(elem, target, preferredFace = null) {
     const dx = target.x - elem.x;
     const dy = target.y - elem.y;
 
-    // Casos particulares quando dx === 0 ou dy === 0
     if (Math.abs(dx) < 0.001 && Math.abs(dy) < 0.001) {
       return { x: elem.x, y: elem.y };
     }
-    if (Math.abs(dx) < 0.001) {
-      const signY = Math.sign(dy) || 1;
-      const h = (elem.height || 40) / 2;
-      return { x: elem.x, y: elem.y + signY * h };
-    }
-    if (Math.abs(dy) < 0.001) {
-      const signX = Math.sign(dx) || 1;
-      const w = (elem.width || 80) / 2;
-      return { x: elem.x + signX * w, y: elem.y };
-    }
 
-    const angle = Math.atan2(dy, dx);
-    const absCos = Math.abs(Math.cos(angle));
-    const absSin = Math.abs(Math.sin(angle));
-
+    // 1. Entidades (Retângulo): Ancoragem FIXA exclusivamente no centro de uma das 4 arestas (Norte, Sul, Leste, Oeste)
     if (elem.type === 'entity') {
       const w = elem.width / 2;
       const h = elem.height / 2;
 
-      let x, y;
-      if (absSin * w <= absCos * h) {
-        x = Math.sign(dx) * w;
-        y = Math.sign(dx) * w * Math.tan(angle);
+      // Se houver uma face preferencial (para conexões duplas/auto-relacionamentos entrarem por uma face e saírem por outra)
+      if (preferredFace === 'east') return { x: elem.x + w, y: elem.y };
+      if (preferredFace === 'west') return { x: elem.x - w, y: elem.y };
+      if (preferredFace === 'north') return { x: elem.x, y: elem.y - h };
+      if (preferredFace === 'south') return { x: elem.x, y: elem.y + h };
+
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        // Aresta Esquerda ou Direita (Leste / Oeste)
+        return { x: elem.x + Math.sign(dx) * w, y: elem.y };
       } else {
-        y = Math.sign(dy) * h;
-        x = Math.sign(dy) * (h / Math.tan(angle));
+        // Aresta Superior ou Inferior (Norte / Sul)
+        return { x: elem.x, y: elem.y + Math.sign(dy) * h };
       }
-      return { x: elem.x + x, y: elem.y + y };
-    } else if (elem.type === 'attribute') {
+    }
+
+    // 2. Relacionamentos (Losango): Ancoragem FIXA nos 4 vértices das arestas (Norte, Sul, Leste, Oeste)
+    if (elem.type === 'relationship') {
+      const w = elem.width / 2;
+      const h = elem.height / 2;
+
+      if (preferredFace === 'east') return { x: elem.x + w, y: elem.y };
+      if (preferredFace === 'west') return { x: elem.x - w, y: elem.y };
+      if (preferredFace === 'north') return { x: elem.x, y: elem.y - h };
+      if (preferredFace === 'south') return { x: elem.x, y: elem.y + h };
+
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        // Vértice Esquerda ou Direita
+        return { x: elem.x + Math.sign(dx) * w, y: elem.y };
+      } else {
+        // Vértice Topo ou Baixo
+        return { x: elem.x, y: elem.y + Math.sign(dy) * h };
+      }
+    }
+
+    // 3. Atributos (Elipse): Conexão direta na borda da elipse (Permite Diagonal)
+    if (elem.type === 'attribute') {
+      const angle = Math.atan2(dy, dx);
       const rx = elem.width / 2;
       const ry = elem.height / 2;
       const tanA = Math.tan(angle);
@@ -547,15 +690,11 @@ class CanvasRenderer {
         x: elem.x + Math.sign(dx) * Math.abs(x),
         y: elem.y + Math.sign(dy) * Math.abs(y)
       };
-    } else if (elem.type === 'relationship') {
-      const a = elem.width / 2;
-      const b = elem.height / 2;
-      const r = (a * b) / (b * absCos + a * absSin);
-      return {
-        x: elem.x + r * Math.cos(angle),
-        y: elem.y + r * Math.sin(angle)
-      };
-    } else if (elem.type === 'specialization') {
+    }
+
+    // 4. Especializações EER (Círculo)
+    if (elem.type === 'specialization') {
+      const angle = Math.atan2(dy, dx);
       const r = 18;
       return {
         x: elem.x + r * Math.cos(angle),

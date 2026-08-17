@@ -741,7 +741,14 @@ a {
   stroke: var(--connection-stroke);
   stroke-width: 2;
   stroke-linecap: round;
+  cursor: pointer;
+  pointer-events: stroke;
   transition: stroke var(--transition-fast);
+}
+
+.connection-hitarea {
+  pointer-events: stroke;
+  cursor: pointer;
 }
 
 .connection-line.total {
@@ -1276,6 +1283,29 @@ a {
   }
 }
 
+/* --- ESTILOS DA BARRA DE SNIPPETS --- */
+.snippet-toolbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color) transparent;
+}
+.btn-insert-snippet {
+  background-color: var(--bg-card);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.btn-insert-snippet:hover {
+  background-color: var(--primary);
+  color: #ffffff;
+  border-color: var(--primary);
+}
+
 /* --- ESTILOS DOS CARDS DE COMANDO DE CÓDIGO INTERATIVOS --- */
 .cmd-section {
   display: flex;
@@ -1296,6 +1326,49 @@ a {
 
 .cmd-category-card:hover {
   border-color: rgba(56, 189, 248, 0.4);
+}
+
+/* Responsive Adjustments */
+@media (max-width: 992px) {
+  .main-layout {
+    flex-direction: column;
+  }
+  .nlp-panel {
+    width: 100%;
+    max-width: none;
+    height: 420px;
+  }
+  .canvas-panel {
+    height: 500px;
+  }
+  .preset-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .header-actions {
+    gap: 4px;
+  }
+  .btn-text-label {
+    display: none;
+  }
+  .modal-card {
+    max-height: 92vh !important;
+    padding: 0;
+  }
+  .modal-body {
+    padding: 12px;
+  }
+  .cmd-snippet-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .cmd-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
 }
 
 .cmd-category-title {
@@ -1382,4 +1455,3 @@ a {
   overflow-x: auto;
   user-select: text;
 }
-

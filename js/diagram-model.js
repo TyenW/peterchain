@@ -224,7 +224,9 @@ class DiagramModel {
       isTotalTarget: Boolean(nextTotalTarget),
       isTotal: Boolean(nextTotalSource || nextTotalTarget),
       roleSource: opts.roleSource || '',
-      roleTarget: opts.roleTarget || ''
+      roleTarget: opts.roleTarget || '',
+      faceSource: opts.faceSource || 'auto',
+      faceTarget: opts.faceTarget || 'auto'
     };
 
     this.connections.push(conn);
@@ -277,12 +279,11 @@ class DiagramModel {
     return [...this.entities, ...this.attributes, ...this.relationships, ...this.specializations];
   }
 
-  // --- ARRANJO AUTOMÁTICO DE LAYOUT INTELIGENTE (ORIENTADO A GRAFO) ---
+  // --- ARRANJO AUTOMÁTICO DE LAYOUT INTELIGENTE (ORIENTADO A GRAFO ORTOGONAL & ESPARSO) ---
   autoLayout() {
     if (this.entities.length === 0) return;
 
-    // 1. ORGANIZAR ENTIDADES EM CAMADAS/GRAFO
-    // Identificar super-entidades, entidades fracas e conectividade
+    // 1. ORGANIZAR ENTIDADES EM CAMADAS/GRAFO ESPARSO
     const entityDegree = new Map();
     this.entities.forEach(e => entityDegree.set(e.id, 0));
 
@@ -291,18 +292,17 @@ class DiagramModel {
       if (entityDegree.has(c.targetId)) entityDegree.set(c.targetId, entityDegree.get(c.targetId) + 1);
     });
 
-    // Separar entidades por níveis (super-entidades no topo, normais no centro, sub-entidades e fracas abaixo)
     const superEntityIds = new Set(this.specializations.map(s => s.superEntityId));
     const subEntityIds = new Set(this.specializations.flatMap(s => s.subEntityIds));
 
-    // Determinar colunas e linhas
-    const cols = Math.max(2, Math.ceil(Math.sqrt(this.entities.length * 1.3)));
-    const spacingX = 380;
-    const spacingY = 280;
-    const startX = 140;
-    const startY = 120;
+    // Distribuir entidades em grade esparsa (espaçamento amplo)
+    const cols = Math.max(2, Math.ceil(Math.sqrt(this.entities.length * 1.5)));
+    const spacingX = 480; // Espaçamento amplo na horizontal
+    const spacingY = 380; // Espaçamento amplo na vertical
+    const startX = 200;
+    const startY = 180;
 
-    // Ordenar entidades: Super-entidades primeiro, depois por grau de conexão, sub-entidades por último
+    // Ordenar entidades por hierarquia e conectividade
     const sortedEntities = [...this.entities].sort((a, b) => {
       if (superEntityIds.has(a.id) && !superEntityIds.has(b.id)) return -1;
       if (!superEntityIds.has(a.id) && superEntityIds.has(b.id)) return 1;
@@ -311,15 +311,15 @@ class DiagramModel {
       return (entityDegree.get(b.id) || 0) - (entityDegree.get(a.id) || 0);
     });
 
-    // Posicionar Entidades
+    // Posicionar Entidades alinhadas em grade ortogonal
     sortedEntities.forEach((entity, index) => {
       const col = index % cols;
       const row = Math.floor(index / cols);
-      entity.x = Math.round((startX + col * spacingX) / 20) * 20;
-      entity.y = Math.round((startY + row * spacingY) / 20) * 20;
+      entity.x = Math.round((startX + col * spacingX) / 40) * 40;
+      entity.y = Math.round((startY + row * spacingY) / 40) * 40;
     });
 
-    // 2. POSICIONAR RELACIONAMENTOS NO CENTROIDE DAS ENTIDADES CONECTADAS
+    // 2. POSICIONAR RELACIONAMENTOS EM ÂNGULOS DE 90° (ORTOGONAIS) ENTRE AS ENTIDADES
     this.relationships.forEach((rel, rIdx) => {
       const relConns = this.connections.filter(c => c.sourceId === rel.id || c.targetId === rel.id);
       const connectedEntities = relConns.map(c => {
@@ -328,28 +328,39 @@ class DiagramModel {
       }).filter(Boolean);
 
       if (connectedEntities.length >= 2) {
-        // Ponto médio / centroide
-        const avgX = connectedEntities.reduce((sum, e) => sum + e.x, 0) / connectedEntities.length;
-        const avgY = connectedEntities.reduce((sum, e) => sum + e.y, 0) / connectedEntities.length;
+        // Se for entre 2 entidades: alinhar no ponto médio ortogonal
+        const e1 = connectedEntities[0];
+        const e2 = connectedEntities[1];
 
-        // Se for auto-relacionamento (mesma entidade)
-        if (connectedEntities.length === 2 && connectedEntities[0].id === connectedEntities[1].id) {
-          rel.x = connectedEntities[0].x + 180;
-          rel.y = connectedEntities[0].y;
+        if (e1.id === e2.id) {
+          // Auto-relacionamento: colocar deslocado 90° à direita
+          rel.x = e1.x + 220;
+          rel.y = e1.y;
         } else {
-          rel.x = Math.round(avgX / 20) * 20;
-          rel.y = Math.round(avgY / 20) * 20;
+          // Se estiverem mais alinhados na horizontal ou vertical, alinhar ortogonalmente a 90°
+          const dx = Math.abs(e2.x - e1.x);
+          const dy = Math.abs(e2.y - e1.y);
+
+          if (dx > dy) {
+            // Conexão predominantemente horizontal
+            rel.x = Math.round(((e1.x + e2.x) / 2) / 20) * 20;
+            rel.y = e1.y; // Mantém no mesmo alinhamento Y (90°)
+          } else {
+            // Conexão predominantemente vertical
+            rel.x = e1.x; // Mantém no mesmo alinhamento X (90°)
+            rel.y = Math.round(((e1.y + e2.y) / 2) / 20) * 20;
+          }
         }
       } else if (connectedEntities.length === 1) {
-        rel.x = connectedEntities[0].x + 180;
+        rel.x = connectedEntities[0].x + 220;
         rel.y = connectedEntities[0].y;
       } else {
-        rel.x = startX + rIdx * 200;
-        rel.y = startY + 400;
+        rel.x = startX + rIdx * 240;
+        rel.y = startY + 500;
       }
     });
 
-    // 3. POSICIONAR ESPECIALIZAÇÕES EER ENTRE SUPER E SUB-ENTIDADES
+    // 3. POSICIONAR ESPECIALIZAÇÕES EER (NO EIXO VERTICAL/DIRETO DE 90°)
     this.specializations.forEach(spec => {
       const superEnt = this.entities.find(e => e.id === spec.superEntityId);
       const subEnts = spec.subEntityIds.map(id => this.entities.find(e => e.id === id)).filter(Boolean);
@@ -361,16 +372,16 @@ class DiagramModel {
         spec.y = Math.round(((superEnt.y + avgSubY) / 2) / 20) * 20;
       } else if (superEnt) {
         spec.x = superEnt.x;
-        spec.y = superEnt.y + 100;
+        spec.y = superEnt.y + 140;
       }
     });
 
-    // 4. DISTRIBUIR ATRIBUTOS DAS ENTIDADES EM LEQUE (LEAVING INNER PATHS CLEAR)
+    // 4. DISTRIBUIR ATRIBUTOS DAS ENTIDADES EM ÂNGULOS DE 90° E 45° ESPARSOS
     this.entities.forEach(entity => {
       const entityAttrs = this.attributes.filter(a => a.parentId === entity.id);
       if (entityAttrs.length === 0) return;
 
-      // Encontrar direção dos relacionamentos conectados para evitar colisão
+      // Direção dos relacionamentos para evitar que os atributos fiquem no caminho dos cabos
       const connectedRelConns = this.connections.filter(c => c.sourceId === entity.id || c.targetId === entity.id);
       let dxSum = 0;
       let dySum = 0;
@@ -384,62 +395,78 @@ class DiagramModel {
         }
       });
 
-      // Ângulo para onde apontam os relacionamentos
-      let freeAngleStart, freeAngleEnd;
+      // Preferir direções cardinais de 90° (Cima, Baixo, Esquerda, Direita) e 45°
+      const cardinalAngles = [
+        -Math.PI / 2, // Cima (90°)
+        Math.PI / 2,  // Baixo (90°)
+        Math.PI,      // Esquerda (90°)
+        0,            // Direita (90°)
+        -Math.PI / 4, // Cima-Direita (45°)
+        -3 * Math.PI / 4, // Cima-Esquerda (45°)
+        3 * Math.PI / 4,  // Baixo-Esquerda (45°)
+        Math.PI / 4   // Baixo-Direita (45°)
+      ];
 
-      if (dxSum === 0 && dySum === 0) {
-        // Sem conexões: 360° em volta da entidade
-        freeAngleStart = -Math.PI / 2;
-        freeAngleEnd = freeAngleStart + 2 * Math.PI;
-      } else {
-        // Apontar atributos no sentido OPOSTO aos relacionamentos!
-        const connAngle = Math.atan2(dySum, dxSum);
-        const oppositeAngle = connAngle + Math.PI;
-
-        // Leque de 180° centrado no ângulo oposto
-        const span = Math.min(Math.PI * 1.4, Math.PI * 0.4 + entityAttrs.length * 0.25);
-        freeAngleStart = oppositeAngle - span / 2;
-        freeAngleEnd = oppositeAngle + span / 2;
+      // Filtrar ângulos para apontar longe das conexões
+      let baseAngle = Math.PI / 2;
+      if (dxSum !== 0 || dySum !== 0) {
+        baseAngle = Math.atan2(-dySum, -dxSum); // Sentido oposto às conexões
       }
 
-      const radius = Math.max(130, entityAttrs.length * 20);
-      const count = entityAttrs.length;
+      // Ordenar ângulos cardinais pela proximidade do ângulo oposto
+      const availableAngles = [...cardinalAngles].sort((a, b) => {
+        const diffA = Math.abs(Math.atan2(Math.sin(a - baseAngle), Math.cos(a - baseAngle)));
+        const diffB = Math.abs(Math.atan2(Math.sin(b - baseAngle), Math.cos(b - baseAngle)));
+        return diffA - diffB;
+      });
+
+      const radius = Math.max(160, entityAttrs.length * 25); // Raio amplo para não encostar
 
       entityAttrs.forEach((attr, aIdx) => {
-        const step = count > 1 ? (freeAngleEnd - freeAngleStart) / (count - 1) : 0;
-        const angle = count === 1 ? (freeAngleStart + freeAngleEnd) / 2 : freeAngleStart + aIdx * step;
+        const angle = availableAngles[aIdx % availableAngles.length];
+        const distMult = 1 + Math.floor(aIdx / availableAngles.length) * 0.4;
+        const finalRadius = radius * distMult;
 
-        attr.x = Math.round((entity.x + radius * Math.cos(angle)) / 10) * 10;
-        attr.y = Math.round((entity.y + radius * Math.sin(angle)) / 10) * 10;
+        attr.x = Math.round((entity.x + finalRadius * Math.cos(angle)) / 20) * 20;
+        attr.y = Math.round((entity.y + finalRadius * Math.sin(angle)) / 20) * 20;
+
+        // Se o atributo for composto, posicionar sub-atributos radialmente a partir dele
+        const subAttrs = this.attributes.filter(a => a.parentId === attr.id);
+        if (subAttrs.length > 0) {
+          subAttrs.forEach((sub, sIdx) => {
+            const subAngle = angle + (sIdx - (subAttrs.length - 1) / 2) * 0.4;
+            sub.x = Math.round((attr.x + 110 * Math.cos(subAngle)) / 10) * 10;
+            sub.y = Math.round((attr.y + 110 * Math.sin(subAngle)) / 10) * 10;
+          });
+        }
       });
     });
 
-    // 5. DISTRIBUIR ATRIBUTOS DE RELACIONAMENTOS
+    // 5. DISTRIBUIR ATRIBUTOS DE RELACIONAMENTOS EM ÂNGULOS DE 90°
     this.relationships.forEach(rel => {
       const relAttrs = this.attributes.filter(a => a.parentId === rel.id);
       if (relAttrs.length === 0) return;
 
-      const radius = 100;
-      const angleStep = (Math.PI * 1.2) / Math.max(1, relAttrs.length);
-      const startAngle = -Math.PI * 0.6;
+      const radius = 130;
+      const angles = [-Math.PI / 2, Math.PI / 2, -Math.PI / 4, Math.PI / 4];
 
       relAttrs.forEach((attr, aIdx) => {
-        const angle = startAngle + aIdx * angleStep;
-        attr.x = Math.round((rel.x + radius * Math.cos(angle)) / 10) * 10;
-        attr.y = Math.round((rel.y + radius * Math.sin(angle)) / 10) * 10;
+        const angle = angles[aIdx % angles.length];
+        attr.x = Math.round((rel.x + radius * Math.cos(angle)) / 20) * 20;
+        attr.y = Math.round((rel.y + radius * Math.sin(angle)) / 20) * 20;
       });
     });
 
     // 6. ATRIBUTOS ÓRFÃOS
     const orphanAttrs = this.attributes.filter(a => !a.parentId);
     orphanAttrs.forEach((attr, idx) => {
-      attr.x = 100;
-      attr.y = 100 + idx * 50;
+      attr.x = 120;
+      attr.y = 120 + idx * 60;
     });
 
-    // 7. PASSO DE RESOLUÇÃO DE COLISÕES (ZERO SOBREPOSIÇÃO)
+    // 7. RESOLUÇÃO RIGOROSA DE SOBREPOSIÇÃO (GARANTINDO DISTÂNCIA ESPARSA)
     const allElements = this.getAllElements();
-    const iterations = 8;
+    const iterations = 12;
 
     for (let iter = 0; iter < iterations; iter++) {
       for (let i = 0; i < allElements.length; i++) {
@@ -447,15 +474,15 @@ class DiagramModel {
           const e1 = allElements[i];
           const e2 = allElements[j];
 
-          // Se um for atributo do outro, mantemos o raio em vez de repelir desordenadamente
+          // Se um for pai do outro (sub-atributo), respeitar o raio do pai
           if (e1.parentId === e2.id || e2.parentId === e1.id) continue;
 
-          // Distância mínima necessária para não sobrepor
-          let minDist = 120;
-          if (e1.type === 'entity' && e2.type === 'entity') minDist = 220;
-          else if (e1.type === 'entity' || e2.type === 'entity') minDist = 160;
-          else if (e1.type === 'relationship' && e2.type === 'relationship') minDist = 160;
-          else if (e1.type === 'attribute' && e2.type === 'attribute') minDist = 110;
+          // Distância mínima generosa para nunca sobrepor nem cruzar
+          let minDist = 160;
+          if (e1.type === 'entity' && e2.type === 'entity') minDist = 300;
+          else if (e1.type === 'entity' || e2.type === 'entity') minDist = 220;
+          else if (e1.type === 'relationship' && e2.type === 'relationship') minDist = 220;
+          else if (e1.type === 'attribute' && e2.type === 'attribute') minDist = 140;
 
           const dx = e2.x - e1.x;
           const dy = e2.y - e1.y;
@@ -466,7 +493,6 @@ class DiagramModel {
             const nx = dx / dist;
             const ny = dy / dist;
 
-            // Se apenas um for atributo, movemos apenas o atributo para preservar a grade de entidades
             if (e1.type === 'attribute' && e2.type !== 'attribute') {
               e1.x -= nx * overlap * 2;
               e1.y -= ny * overlap * 2;

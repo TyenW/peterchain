@@ -170,7 +170,7 @@ class NLPParser {
 
   extractRelationshipsWithAttributes(text) {
     // nome (Ent1 N : N Ent2) { Atrib1, Atrib2 }
-    const regex = /((?:relacionamento\s+fraco\s+)?[a-záàâãéèêíóòôõúç0-9_]+)\s*\(\s*([^)]+)\s*\)\s*\{([^}]+)\}/gi;
+    const regex = /((?:relacionamento\s+fraco\s+|relacionamento\s+obrigatorio\s+|relacionamento\s+obrigatório\s+|relacionamento\s+total\s+|fraco\s+|obrigatorio\s+|obrigatório\s+|total\s+)?[a-záàâãéèêíóòôõúç0-9_]+)\s*\(\s*([^)]+)\s*\)\s*\{([^}]+)\}/gi;
     let result = text;
     let match;
 
@@ -218,7 +218,7 @@ class NLPParser {
   extractInlineRelationships(text) {
     // nome (Ent1 [papel] N : N Ent2 [papel])
     // relacionamento fraco nome (Ent1 1 : N Ent2)
-    const regex = /((?:relacionamento\s+fraco\s+)?[a-záàâãéèêíóòôõúç0-9_]+)\s*\(\s*([^)]+)\s*\)/gi;
+    const regex = /((?:relacionamento\s+fraco\s+|relacionamento\s+obrigatorio\s+|relacionamento\s+obrigatório\s+|relacionamento\s+total\s+|fraco\s+|obrigatorio\s+|obrigatório\s+|total\s+)?[a-záàâãéèêíóòôõúç0-9_]+)\s*\(\s*([^)]+)\s*\)/gi;
     let result = text;
     let match;
 
@@ -257,11 +257,31 @@ class NLPParser {
     const entity = res.element || res;
     this.log(`Entidade [${entity.name}] ${isWeak ? '(FRACA)' : ''} criada.`, 'success');
 
-    // Separar atributos por vírgula, ponto e vírgula ou quebra de linha
-    const attrTokens = bodyText
-      .split(/[\n,;]/)
-      .map(t => t.trim())
-      .filter(t => t.length > 0);
+    // Separar atributos ignorando vírgulas/ponto-e-vírgula dentro de () ou []
+    const attrTokens = [];
+    let currentToken = '';
+    let parenDepth = 0;
+    let bracketDepth = 0;
+
+    for (let i = 0; i < bodyText.length; i++) {
+      const char = bodyText[i];
+      if (char === '(') parenDepth++;
+      else if (char === ')') parenDepth = Math.max(0, parenDepth - 1);
+      else if (char === '[') bracketDepth++;
+      else if (char === ']') bracketDepth = Math.max(0, bracketDepth - 1);
+
+      if ((char === ',' || char === ';' || char === '\n') && parenDepth === 0 && bracketDepth === 0) {
+        if (currentToken.trim().length > 0) {
+          attrTokens.push(currentToken.trim());
+        }
+        currentToken = '';
+      } else {
+        currentToken += char;
+      }
+    }
+    if (currentToken.trim().length > 0) {
+      attrTokens.push(currentToken.trim());
+    }
 
     attrTokens.forEach(token => {
       // Ignorar comentários dentro de blocos
@@ -282,8 +302,8 @@ class NLPParser {
     let isDerived = false;
     let cleanToken = token.trim();
 
-    // 0. Atributo Composto: Nome (PrimeiroNome, Sobrenome) ou Nome -> PrimeiroNome, Sobrenome
-    const compMatch = cleanToken.match(/^([^\(->\{]+)\s*(?:\(|->|\{)\s*([^)]+?)\s*(?:\)|})?$/);
+    // 0. Atributo Composto: Nome (PrimeiroNome, Sobrenome) ou Nome[PrimeiroNome; Sobrenome] ou Nome -> PrimeiroNome, Sobrenome
+    const compMatch = cleanToken.match(/^([^\(\[\->\{]+)\s*(?:\(|\[|->|\{)\s*([^\]\)]+?)\s*(?:\)|\]|\})?$/);
     if (compMatch && !cleanToken.toLowerCase().includes('(chave)') && !cleanToken.toLowerCase().includes('(pk)') && !cleanToken.toLowerCase().includes('(key)')) {
       const parentName = compMatch[1].trim();
       const subTokensText = compMatch[2].trim();
@@ -353,11 +373,22 @@ class NLPParser {
   processRelationshipSignature(relRawName, signatureText) {
     let cleanRaw = relRawName.trim();
     let isWeak = false;
+    let isMandatoryPrefix = false;
 
-    // Detectar "relacionamento fraco"
-    if (/^relacionamento\s+fraco\s+/i.test(cleanRaw)) {
+    // Detectar "relacionamento fraco" / "fraco"
+    if (/^(?:relacionamento\s+fraco|fraco)\s+/i.test(cleanRaw)) {
       isWeak = true;
-      cleanRaw = cleanRaw.replace(/^relacionamento\s+fraco\s+/i, '').trim();
+      cleanRaw = cleanRaw.replace(/^(?:relacionamento\s+fraco|fraco)\s+/i, '').trim();
+    }
+    // Detectar "relacionamento obrigatorio" / "obrigatorio" / "total" / "obrig"
+    else if (/^(?:relacionamento\s+obrigat[óo]rio|obrigat[óo]rio|relacionamento\s+total|total|obrig)\s*/i.test(cleanRaw)) {
+      isMandatoryPrefix = true;
+      cleanRaw = cleanRaw.replace(/^(?:relacionamento\s+obrigat[óo]rio|obrigat[óo]rio|relacionamento\s+total|total|obrig)\s*/i, '').trim();
+    }
+
+    if (cleanRaw.toLowerCase().startsWith('obrig') && cleanRaw.length > 5 && !isMandatoryPrefix) {
+      isMandatoryPrefix = true;
+      cleanRaw = cleanRaw.replace(/^obrig/i, '').trim();
     }
 
     const relName = cleanRaw.toUpperCase() || 'RELACIONA';
@@ -367,6 +398,13 @@ class NLPParser {
 
     if (participants && participants.length >= 2) {
       const rel = this.createRelFromParticipants(relName, participants, isWeak);
+      if (isMandatoryPrefix && rel) {
+        this.model.connections.filter(c => c.sourceId === rel.id || c.targetId === rel.id).forEach(conn => {
+          conn.isTotalSource = true;
+          conn.isTotalTarget = true;
+          conn.isTotal = true;
+        });
+      }
       return rel;
     }
 
@@ -392,13 +430,14 @@ class NLPParser {
       const relRes = this.model.addRelationship(relName, 400, 200, isWeak);
       const rel = relRes.element || relRes;
 
-      // Participação total no lado fraco
-      const isTotalEnt2 = isWeak || ent2.isWeak;
+      // Participação total no lado fraco ou se o prefixo de relacionamento for obrigatório
+      const isTotalEnt1 = isMandatoryPrefix;
+      const isTotalEnt2 = isWeak || ent2.isWeak || isMandatoryPrefix;
 
-      this.model.addConnection(ent1.id, rel.id, card1, '', { roleSource: role1, forceNew: true });
+      this.model.addConnection(ent1.id, rel.id, card1, '', { roleSource: role1, isTotalSource: isTotalEnt1, forceNew: true });
       this.model.addConnection(rel.id, ent2.id, '', card2, { roleSource: role2, isTotalSource: isTotalEnt2, forceNew: true });
 
-      this.log(`Relacionamento [${rel.name}] ${isWeak ? '(FRACO) ' : ''}(${card1}:${card2}) — ${ent1.name} ↔ ${ent2.name}`, 'success');
+      this.log(`Relacionamento [${rel.name}] ${isWeak ? '(FRACO) ' : ''}${isMandatoryPrefix ? '(OBRIGATÓRIO) ' : ''}(${card1}:${card2}) — ${ent1.name} ↔ ${ent2.name}`, 'success');
 
       if (role1 || role2) {
         this.log(`  └─ Papéis: ${role1 || '—'} / ${role2 || '—'}`, 'info');

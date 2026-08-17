@@ -94,6 +94,11 @@ class InteractionHandler {
       } else if (targetConnLine) {
         const connId = targetConnLine.getAttribute('data-conn-id');
         this.renderer.selectConnection(connId);
+
+        // Arrasto direto da Linha para determinar a Face
+        this.isDraggingConnection = true;
+        this.draggedConnection = this.model.connections.find(c => c.id === connId);
+        this.dragStartPos = canvasCoords;
       } else {
         // Clicou no fundo do canvas
         this.renderer.clearSelection();
@@ -217,11 +222,80 @@ class InteractionHandler {
       const dx = canvasCoords.x - this.dragStartPos.x;
       const dy = canvasCoords.y - this.dragStartPos.y;
 
-      // Snap to Grid (Grade de 10px)
-      const rawX = this.elementStartPos.x + dx;
-      const rawY = this.elementStartPos.y + dy;
-      this.draggedElement.x = Math.round(rawX / 10) * 10;
-      this.draggedElement.y = Math.round(rawY / 10) * 10;
+      let targetX = Math.round((this.elementStartPos.x + dx) / 10) * 10;
+      let targetY = Math.round((this.elementStartPos.y + dy) / 10) * 10;
+
+      // --- AUXÍLIO DE ALINHAMENTO MAGNÉTICO (SMART ALIGNMENT GUIDES) ---
+      const snapThreshold = 8;
+      const allOtherElements = this.model.getAllElements().filter(el => el.id !== this.draggedElement.id);
+      
+      let alignedX = null;
+      let alignedY = null;
+
+      for (const other of allOtherElements) {
+        // Alinhamento no eixo X (mesma coluna / vertical)
+        if (Math.abs(targetX - other.x) < snapThreshold) {
+          targetX = other.x;
+          alignedX = other.x;
+        }
+        // Alinhamento no eixo Y (mesma linha / horizontal)
+        if (Math.abs(targetY - other.y) < snapThreshold) {
+          targetY = other.y;
+          alignedY = other.y;
+        }
+      }
+
+      this.draggedElement.x = targetX;
+      this.draggedElement.y = targetY;
+
+      this.renderer.render();
+
+      // Desenhar guias de alinhamento SVG dinâmicas
+      this.renderAlignmentGuides(alignedX, alignedY, this.draggedElement);
+      return;
+    }
+
+    // --- ARRASTO DIRETO DA LINHA DE CONEXÃO (MOVER SEGMENTOS 90° E RECALCULAR PORTA DE ENTRADA/SAÍDA) ---
+    if (this.isDraggingConnection && this.draggedConnection) {
+      const canvasCoords = this.renderer.screenToCanvasCoordinates(e.clientX, e.clientY);
+      const sourceElem = this.model.getElementById(this.draggedConnection.sourceId);
+      const targetElem = this.model.getElementById(this.draggedConnection.targetId);
+
+      if (sourceElem && targetElem) {
+        const isAttr = sourceElem.type === 'attribute' || targetElem.type === 'attribute';
+
+        if (!isAttr) {
+          // Distância do clique em relação às pontas de origem e destino
+          const distSource = Math.hypot(canvasCoords.x - sourceElem.x, canvasCoords.y - sourceElem.y);
+          const distTarget = Math.hypot(canvasCoords.x - targetElem.x, canvasCoords.y - targetElem.y);
+
+          // Se estiver arrastando perto da origem (menos de 70px da origem), muda a porta de saída da origem
+          if (distSource < 70) {
+            const dx = canvasCoords.x - sourceElem.x;
+            const dy = canvasCoords.y - sourceElem.y;
+            this.draggedConnection.faceSource = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'east' : 'west') : (dy >= 0 ? 'south' : 'north');
+          }
+          // Se estiver arrastando perto do destino (menos de 70px do destino), muda a porta de entrada do destino
+          else if (distTarget < 70) {
+            const dx = canvasCoords.x - targetElem.x;
+            const dy = canvasCoords.y - targetElem.y;
+            this.draggedConnection.faceTarget = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'east' : 'west') : (dy >= 0 ? 'south' : 'north');
+          }
+          // Se estiver arrastando a parte do meio (o segmento central), move a posição do segmento a 90°
+          else {
+            const dxTotal = targetElem.x - sourceElem.x;
+            const dyTotal = targetElem.y - sourceElem.y;
+
+            if (Math.abs(dxTotal) >= Math.abs(dyTotal) && Math.abs(dxTotal) > 20) {
+              const dragRelX = (canvasCoords.x - sourceElem.x) / dxTotal;
+              this.draggedConnection.midOffset = Math.max(0.05, Math.min(0.95, dragRelX));
+            } else if (Math.abs(dyTotal) > 20) {
+              const dragRelY = (canvasCoords.y - sourceElem.y) / dyTotal;
+              this.draggedConnection.midOffset = Math.max(0.05, Math.min(0.95, dragRelY));
+            }
+          }
+        }
+      }
 
       this.renderer.render();
       return;
@@ -236,7 +310,53 @@ class InteractionHandler {
     }
   }
 
+  renderAlignmentGuides(alignX, alignY, activeElem) {
+    this.removeAlignmentGuides();
+
+    if (alignX === null && alignY === null) return;
+
+    const svgLayer = this.renderer.labelsLayer || this.renderer.svg;
+
+    if (alignX !== null) {
+      const lineX = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      lineX.setAttribute('x1', alignX);
+      lineX.setAttribute('y1', activeElem.y - 1000);
+      lineX.setAttribute('x2', alignX);
+      lineX.setAttribute('y2', activeElem.y + 1000);
+      lineX.setAttribute('stroke', '#38bdf8');
+      lineX.setAttribute('stroke-width', '1.5');
+      lineX.setAttribute('stroke-dasharray', '4 3');
+      lineX.setAttribute('class', 'alignment-guide-line');
+      svgLayer.appendChild(lineX);
+    }
+
+    if (alignY !== null) {
+      const lineY = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      lineY.setAttribute('x1', activeElem.x - 1000);
+      lineY.setAttribute('y1', alignY);
+      lineY.setAttribute('x2', activeElem.x + 1000);
+      lineY.setAttribute('y2', alignY);
+      lineY.setAttribute('stroke', '#38bdf8');
+      lineY.setAttribute('stroke-width', '1.5');
+      lineY.setAttribute('stroke-dasharray', '4 3');
+      lineY.setAttribute('class', 'alignment-guide-line');
+      svgLayer.appendChild(lineY);
+    }
+  }
+
+  removeAlignmentGuides() {
+    document.querySelectorAll('.alignment-guide-line').forEach(el => el.remove());
+  }
+
   handleMouseUp(e) {
+    this.removeAlignmentGuides();
+
+    if (this.isDraggingConnection && this.draggedConnection) {
+      this.model.notify();
+    }
+
+    this.isDraggingConnection = false;
+    this.draggedConnection = null;
     // Se um elemento foi arrastado e mudou de posição, notificar o modelo UMA ÚNICA VEZ para gravar snapshot de Undo
     if (this.isDraggingElement && this.draggedElement) {
       if (this.draggedElement.x !== this.elementStartPos.x || this.draggedElement.y !== this.elementStartPos.y) {
