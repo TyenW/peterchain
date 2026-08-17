@@ -292,14 +292,17 @@ matricula (Aluno N : N Curso) {
 - Participação Total (Linha Dupla): **100% Suportado**
 - Role Names (`[papel]`): **100% Suportado**
 - Especialização EER (`d`, `o`, `u`): **100% Suportado**
+- **Exportação Acadêmica (PNG / SVG)**: **100% Suportado** (Gera saída em vetor/imagem no padrão acadêmico oficial de Peter Chen: fundo branco, contornos pretos, preenchimento cinza neutro e tipografia serifada Times New Roman em alta resolução 3x).
 
 ---
 
-## 14. Limitações Conhecidas do DER Builder
+## 14. Recursos do Parser & Exportador
 
-1. **Auto-layout em Diagramas Ternários Extremos**: Relacionamentos com mais de 4 entidades conectadas podem necessitar de ajustes manuais de arraste.
-2. **Seleção Múltipla**: Seleção de múltiplos elementos simultâneos via retângulo de seleção (*rubber-band*) está planejada para versões futuras.
+1. **Parser Determinístico Inteligente**: Suporta comentários (`//` e `#`), especializações multinível, relacionamentos n-ários, papéis em auto-relacionamentos e atributos compostos.
+2. **Exportação Acadêmica Formal**: Os botões de exportação PNG/SVG geram automaticamente o diagrama na notação visual acadêmica de Peter Chen em preto e branco, pronto para inclusão em monografias, artigos e TCCs.
+3. **Persistência Local e Histórico**: Suporta undo/redo global (`Ctrl+Z` / `Ctrl+Y`), salvamento local no navegador via `localStorage` e exportação/importação em formato JSON.
 
 ---
 
 *DER Builder — Especificação Técnica de Referência.*
+

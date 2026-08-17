@@ -293,98 +293,191 @@ class CanvasRenderer {
     return g;
   }
 
-  // --- RENDERIZAR CONEXÕES, LINHAS DUPLAS E CARDINALIDADES ---
+  // --- RENDERIZAR CONEXÕES (COM SUPORTE A LINHAS CURVAS PARALELAS SEM SOBREPOSIÇÃO) ---
   renderConnections() {
+    this.connectionsLayer.innerHTML = '';
+    this.labelsLayer.innerHTML = '';
+
+    // Agrupar conexões pelo par de nós (sem ordem)
+    const pairGroups = new Map();
     this.model.connections.forEach(conn => {
-      const source = this.model.getElementById(conn.sourceId);
-      const target = this.model.getElementById(conn.targetId);
-
-      if (!source || !target) return;
-
-      const isSelected = this.selectedConnectionId === conn.id;
-
-      // Calcular pontos de ancoragem nas bordas das formas
-      const startPt = this.calculateEdgeIntersection(source, target);
-      const endPt = this.calculateEdgeIntersection(target, source);
-
-      const hasTotalLegacy = Boolean(conn.isTotal);
-      const hasTotalSource = conn.isTotalSource !== undefined ? Boolean(conn.isTotalSource) : hasTotalLegacy;
-      const hasTotalTarget = conn.isTotalTarget !== undefined ? Boolean(conn.isTotalTarget) : hasTotalLegacy;
-      const lineClass = `connection-line ${hasTotalLegacy ? 'total' : ''} ${isSelected ? 'selected' : ''}`;
-      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      line.setAttribute('x1', startPt.x);
-      line.setAttribute('y1', startPt.y);
-      line.setAttribute('x2', endPt.x);
-      line.setAttribute('y2', endPt.y);
-      line.setAttribute('class', lineClass);
-      line.setAttribute('data-conn-id', conn.id);
-
-      this.connectionsLayer.appendChild(line);
-
-      // Participação total por lado: desenha uma linha paralela apenas no trecho do lado marcado.
-      if (hasTotalSource) {
-        this.renderTotalParticipationSegment(startPt, endPt, 0.0, 0.55, isSelected, conn.id);
+      const ids = [conn.sourceId, conn.targetId].sort();
+      const pairKey = ids.join('___');
+      if (!pairGroups.has(pairKey)) {
+        pairGroups.set(pairKey, []);
       }
-      if (hasTotalTarget) {
-        this.renderTotalParticipationSegment(startPt, endPt, 0.45, 1.0, isSelected, conn.id);
-      }
+      pairGroups.get(pairKey).push(conn);
+    });
 
-      // Renderizar rótulos de cardinalidade (ex: 1, N, M)
-      if (conn.cardinalitySource) {
-        this.renderCardinalityBadge(conn.cardinalitySource, startPt, endPt, 0.25);
-      }
-      if (conn.cardinalityTarget) {
-        this.renderCardinalityBadge(conn.cardinalityTarget, startPt, endPt, 0.75);
-      }
+    pairGroups.forEach((conns) => {
+      const count = conns.length;
 
-      // Renderizar rótulos de Papel (Role names) nas conexões se definidos
-      if (conn.roleSource) {
-        this.renderRoleLabel(conn.roleSource, startPt, endPt, 0.35);
-      }
-      if (conn.roleTarget) {
-        this.renderRoleLabel(conn.roleTarget, startPt, endPt, 0.65);
-      }
+      conns.forEach((conn, index) => {
+        const source = this.model.getElementById(conn.sourceId);
+        const target = this.model.getElementById(conn.targetId);
+
+        if (!source || !target) return;
+
+        const isSelected = this.selectedConnectionId === conn.id;
+
+        // Calcular pontos de ancoragem nas bordas das formas
+        const startPt = this.calculateEdgeIntersection(source, target);
+        const endPt = this.calculateEdgeIntersection(target, source);
+
+        const dx = endPt.x - startPt.x;
+        const dy = endPt.y - startPt.y;
+        const len = Math.hypot(dx, dy) || 1;
+
+        // Calcular Ponto de Controle (P1) para curva Bezier
+        let ctrl;
+        if (count === 1) {
+          ctrl = { x: (startPt.x + endPt.x) / 2, y: (startPt.y + endPt.y) / 2 };
+        } else {
+          // Múltiplas conexões entre o mesmo par de elementos: deslocamento perpendicular
+          const offsetStep = 50; // Deslocamento de 50px por linha
+          const offset = (index - (count - 1) / 2) * offsetStep;
+
+          const nx = -dy / len;
+          const ny = dx / len;
+
+          ctrl = {
+            x: (startPt.x + endPt.x) / 2 + nx * offset,
+            y: (startPt.y + endPt.y) / 2 + ny * offset
+          };
+        }
+
+        const hasTotalLegacy = Boolean(conn.isTotal);
+        const hasTotalSource = conn.isTotalSource !== undefined ? Boolean(conn.isTotalSource) : hasTotalLegacy;
+        const hasTotalTarget = conn.isTotalTarget !== undefined ? Boolean(conn.isTotalTarget) : hasTotalLegacy;
+        const lineClass = `connection-line ${hasTotalLegacy ? 'total' : ''} ${isSelected ? 'selected' : ''}`;
+
+        // Renderizar caminho da conexão (Reta ou Curva Bezier Quadrática)
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        const d = `M ${startPt.x} ${startPt.y} Q ${ctrl.x} ${ctrl.y} ${endPt.x} ${endPt.y}`;
+        path.setAttribute('d', d);
+        path.setAttribute('fill', 'none');
+        path.setAttribute('class', lineClass);
+        path.setAttribute('data-conn-id', conn.id);
+
+        this.connectionsLayer.appendChild(path);
+
+        // Participação total por lado: linha paralela ao longo da curva
+        if (hasTotalSource) {
+          this.renderTotalParticipationCurve(startPt, ctrl, endPt, 0.0, 0.55, isSelected, conn.id);
+        }
+        if (hasTotalTarget) {
+          this.renderTotalParticipationCurve(startPt, ctrl, endPt, 0.45, 1.0, isSelected, conn.id);
+        }
+
+        // Renderizar rótulo de cardinalidade formatado como par (ex: 1:N, N:N, 1:1, N:1)
+        const formattedCard = this.getFormattedCardinality(conn);
+        if (formattedCard) {
+          const pt = this.getQuadraticBezierPoint(startPt, ctrl, endPt, 0.3);
+          this.renderCardinalityBadgeAt(formattedCard, pt.x, pt.y);
+        }
+
+        // Renderizar rótulos de Papel (Role names) nas conexões se definidos
+        if (conn.roleSource) {
+          const pt = this.getQuadraticBezierPoint(startPt, ctrl, endPt, 0.5);
+          this.renderRoleLabelAt(conn.roleSource, pt.x, pt.y - 14);
+        }
+        if (conn.roleTarget) {
+          const pt = this.getQuadraticBezierPoint(startPt, ctrl, endPt, 0.7);
+          this.renderRoleLabelAt(conn.roleTarget, pt.x, pt.y - 14);
+        }
+      });
     });
   }
 
-  renderTotalParticipationSegment(startPt, endPt, tStart, tEnd, isSelected, connId) {
-    const baseX1 = startPt.x + (endPt.x - startPt.x) * tStart;
-    const baseY1 = startPt.y + (endPt.y - startPt.y) * tStart;
-    const baseX2 = startPt.x + (endPt.x - startPt.x) * tEnd;
-    const baseY2 = startPt.y + (endPt.y - startPt.y) * tEnd;
+  // --- OBTENÇÃO DE RATIO DE CARDINALIDADE FORMATADO (1:N, N:N, 1:1, N:1) ---
+  getFormattedCardinality(conn) {
+    if (conn.cardinalitySource && conn.cardinalityTarget) {
+      return `${conn.cardinalitySource}:${conn.cardinalityTarget}`;
+    }
 
-    const dx = baseX2 - baseX1;
-    const dy = baseY2 - baseY1;
-    const len = Math.hypot(dx, dy) || 1;
+    const primaryCard = conn.cardinalitySource || conn.cardinalityTarget;
+    if (!primaryCard) return null;
 
-    const offset = 3;
-    const nx = -dy / len;
-    const ny = dx / len;
+    // Se já for um par (ex: "1:N")
+    if (primaryCard.includes(':')) return primaryCard;
 
-    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    line.setAttribute('x1', baseX1 + nx * offset);
-    line.setAttribute('y1', baseY1 + ny * offset);
-    line.setAttribute('x2', baseX2 + nx * offset);
-    line.setAttribute('y2', baseY2 + ny * offset);
-    line.setAttribute('class', `connection-line total-side ${isSelected ? 'selected' : ''}`);
-    line.setAttribute('data-conn-id', connId);
-    this.connectionsLayer.appendChild(line);
+    // Buscar a conexão irmã no mesmo relacionamento para formar o par (ex: 1:N, N:1)
+    const relId = [conn.sourceId, conn.targetId].find(id => {
+      const elem = this.model.getElementById(id);
+      return elem && elem.type === 'relationship';
+    });
+
+    if (relId) {
+      const siblingConns = this.model.connections.filter(c => c.id !== conn.id && (c.sourceId === relId || c.targetId === relId));
+      for (const sib of siblingConns) {
+        const sibCard = sib.cardinalitySource || sib.cardinalityTarget;
+        if (sibCard) {
+          const cleanSibCard = sibCard.includes(':') ? sibCard.split(':')[0] : sibCard;
+          return `${primaryCard}:${cleanSibCard}`;
+        }
+      }
+    }
+
+    // Formato padrão em dupla
+    if (primaryCard === 'N' || primaryCard === 'M') return `${primaryCard}:1`;
+    if (primaryCard === '1') return `1:N`;
+
+    return primaryCard;
   }
 
-  renderCardinalityBadge(label, startPt, endPt, t) {
-    const x = startPt.x + (endPt.x - startPt.x) * t;
-    const y = startPt.y + (endPt.y - startPt.y) * t;
+  getQuadraticBezierPoint(p0, p1, p2, t) {
+    const oneMinusT = 1 - t;
+    return {
+      x: oneMinusT * oneMinusT * p0.x + 2 * oneMinusT * t * p1.x + t * t * p2.x,
+      y: oneMinusT * oneMinusT * p0.y + 2 * oneMinusT * t * p1.y + t * t * p2.y
+    };
+  }
 
+  renderTotalParticipationCurve(p0, p1, p2, tStart, tEnd, isSelected, connId) {
+    const steps = 8;
+    let d = '';
+    const offsetDistance = 3;
+
+    for (let i = 0; i <= steps; i++) {
+      const t = tStart + (tEnd - tStart) * (i / steps);
+      const pt = this.getQuadraticBezierPoint(p0, p1, p2, t);
+
+      // Tangente da curva
+      const oneMinusT = 1 - t;
+      const tx = 2 * oneMinusT * (p1.x - p0.x) + 2 * t * (p2.x - p1.x);
+      const ty = 2 * oneMinusT * (p1.y - p0.y) + 2 * t * (p2.y - p1.y);
+      const tLen = Math.hypot(tx, ty) || 1;
+
+      // Normal da curva
+      const nx = -ty / tLen;
+      const ny = tx / tLen;
+
+      const ox = pt.x + nx * offsetDistance;
+      const oy = pt.y + ny * offsetDistance;
+
+      if (i === 0) d += `M ${ox} ${oy}`;
+      else d += ` L ${ox} ${oy}`;
+    }
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', d);
+    path.setAttribute('fill', 'none');
+    path.setAttribute('class', `connection-line total-side ${isSelected ? 'selected' : ''}`);
+    path.setAttribute('data-conn-id', connId);
+    this.connectionsLayer.appendChild(path);
+  }
+
+  renderCardinalityBadgeAt(label, x, y) {
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-
-    const badgeWidth = Math.max(22, label.length * 9 + 8);
-    const badgeHeight = 20;
+    const badgeWidth = Math.max(34, label.length * 9 + 10);
+    const badgeHeight = 22;
 
     const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     rect.setAttribute('x', x - badgeWidth / 2);
     rect.setAttribute('y', y - badgeHeight / 2);
     rect.setAttribute('width', badgeWidth);
     rect.setAttribute('height', badgeHeight);
+    rect.setAttribute('rx', 4);
     rect.setAttribute('class', 'cardinality-bg');
 
     const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
@@ -398,10 +491,7 @@ class CanvasRenderer {
     this.labelsLayer.appendChild(g);
   }
 
-  renderRoleLabel(roleText, startPt, endPt, t) {
-    const x = startPt.x + (endPt.x - startPt.x) * t;
-    const y = startPt.y + (endPt.y - startPt.y) * t - 10;
-
+  renderRoleLabelAt(roleText, x, y) {
     const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     text.setAttribute('x', x);
     text.setAttribute('y', y);

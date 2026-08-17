@@ -1,0 +1,59 @@
+// ==============================================================================
+// SAM — SISTEMA ACADÊMICO DE MATRÍCULAS (v1.0)
+// Pseudo-código para Notação de Peter Chen (DER / EER Builder)
+// ==============================================================================
+
+// --- ENTIDADES FORTES ---
+
+Area {
+  *Sigla,
+  Nome
+}
+
+Curso {
+  *Sigla,
+  Nome,
+  Custo,
+  ~Horas,
+  ++Professores
+}
+
+Aluno {
+  *CPF,
+  Nome,
+  Sexo,
+  DataNascimento
+}
+
+// --- ENTIDADES FRACAS ---
+
+entidade fraca Modulo {
+  _Sigla_,
+  Nome
+}
+
+entidade fraca Topico {
+  _Sigla_,
+  Nome,
+  Horas
+}
+
+// --- RELACIONAMENTOS ---
+
+// 1. Curso pertence obrigatoriamente a uma Área (1 Área : N Cursos)
+pertence (Curso N : 1 Area)
+
+// 2. Auto-relacionamento recursivo entre Áreas (1 Área-Mãe : N Áreas-Filhas)
+integra (Area [integrante] N : 1 Area [integrada])
+
+// 3. Matrícula de Aluno em Curso (N:N com atributos no relacionamento)
+matricula (Aluno N : N Curso) {
+  DataMatricula,
+  Pago
+}
+
+// 4. Relacionamento Identificador: Curso composto por Módulos (1:N)
+relacionamento fraco compoe_curso (Curso 1 : N Modulo)
+
+// 5. Relacionamento Identificador: Módulo composto por Tópicos (1:N)
+relacionamento fraco compoe_modulo (Modulo 1 : N Topico)

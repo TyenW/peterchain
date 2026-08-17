@@ -1,52 +1,55 @@
-# Documentacao SAM v1.0 para DER Builder
+# Documentação Técnica e Especificação ER — SAM v1.0
 
-## Objetivo
-Este documento traduz o minimundo textual do SAM para uma estrutura de modelagem ER/EER alinhada com a notacao Peter Chen e com o parser do DER Builder.
+Este documento apresenta a especificação conceitual do **SAM (Sistema Acadêmico de Matrículas v1.0)**, detalhando o mapeamento da descrição textual do minimundo para a notação de **Peter Chen** e fornecendo o código ER pronto para execução no **DER Builder**.
 
-## Resultado da Analise
+---
 
-### Entidades Fortes
-- Area
-  - Chave: Sigla
-  - Atributos: Nome
-- Curso
-  - Chave: Sigla
-  - Atributos: Nome, Custo, Horas (derivado)
-- Aluno
-  - Chave: CPF
-  - Atributos: Nome (composto por PrimeiroNome e Sobrenome), Sexo, DataNascimento
-- Professor
-  - Chave: CPF
-  - Atributos: Nome
+## 1. Mapeamento Minimundo → Notação Peter Chen
 
-### Entidades Fracas
-- Modulo (fraca)
-  - Chave parcial: Sigla
-  - Atributos: Nome
-- Topico (fraca)
-  - Chave parcial: Sigla
-  - Atributos: Nome, Horas
+### 1.1 Entidades Fortes (Regulares)
 
-### Relacionamentos
-- pertence: Curso N : 1 Area
-  - Regra de negocio: Curso participa obrigatoriamente de Area
-- integra (recursivo em Area): Area [integrante] N : 1 Area [integrada]
-  - Regra: cada Area integrante participa de no maximo uma Area integrada
-- ministra: Professor N : N Curso
-- matricula: Aluno N : N Curso
-  - Atributos de relacionamento: Data, Pago
-- compoe_curso (fraco): Curso 1 : N Modulo
-  - Modulo depende de Curso
-- compoe_modulo (fraco): Modulo 1 : N Topico
-  - Topico depende de Modulo
+| Entidade | Atributo Chave (`*`) | Atributos Simples | Atributos Especiais |
+|---|---|---|---|
+| **Area** | `*Sigla` | `Nome` | — |
+| **Curso** | `*Sigla` | `Nome`, `Custo` | `~Horas` (Derivado do total de horas dos tópicos) |
+| **Aluno** | `*CPF` | `PrimeiroNome`, `Sobrenome`, `Sexo`, `DataNascimento` | `Nome` (Composto — conectar subatributos via UI) |
+| **Professor** | `*CPF` | `Nome` | — |
 
-## Notas de Fidelidade ao Minimundo
-- Horas de Curso sao derivadas do total de Horas de Topicos.
-- Nomes de papel no relacionamento recursivo integra estao explicitos.
-- Modulo e Topico sao modelados como entidades fracas com relacionamentos identificadores.
-- Nome composto de Aluno deve ser representado ligando PrimeiroNome e Sobrenome ao atributo pai Nome via conexoes atributo-atributo.
+---
 
-## Script Recomendado para o Editor
+### 1.2 Entidades Fracas & Relacionamentos Identificadores
+
+| Entidade Fraca | Discriminador (`_..._`) | Entidade Identificadora | Relacionamento Identificador |
+|---|---|---|---|
+| **Modulo** | `_Sigla_` | **Curso** | `compoe_curso` (1:N, Participação Total de Módulo) |
+| **Topico** | `_Sigla_` | **Modulo** | `compoe_modulo` (1:N, Participação Total de Tópico) |
+
+---
+
+### 1.3 Relacionamentos e Cardinalidades
+
+| Relacionamento | Tipo / Entidades | Cardinalidade | Papéis (Roles) | Atributos de Relacionamento |
+|---|---|---|---|---|
+| `pertence` | Binário (Curso ↔ Area) | N : 1 | — | — |
+| `integra` | **Recursivo** (Area ↔ Area) | N : 1 | `[integrante]` / `[integrada]` | — |
+| `ministra` | Binário (Professor ↔ Curso) | N : N | — | — |
+| `matricula` | Binário (Aluno ↔ Curso) | N : N | — | `DataMatricula`, `Pago` |
+| `compoe_curso` | **Identificador** (Curso ↔ Modulo) | 1 : N | — | — |
+| `compoe_modulo` | **Identificador** (Modulo ↔ Topico) | 1 : N | — | — |
+
+---
+
+## 2. Pseudo-Código Completo para o DER Builder
+
+Cole o código abaixo diretamente no painel de texto do **DER Builder** e clique em **"Executar Código"**:
+
+```
+// ============================================================
+// SAM — Sistema Acadêmico de Matrículas v1.0
+// Modelo Entidade-Relacionamento (Notação Peter Chen / EER)
+// ============================================================
+
+// --- ENTIDADES FORTES ---
 
 Area {
   *Sigla,
@@ -62,17 +65,20 @@ Curso {
 
 Aluno {
   *CPF,
-  Nome,
-  PrimeiroNome,
-  Sobrenome,
+  Nome (PrimeiroNome, Sobrenome),
   Sexo,
   DataNascimento
 }
 
-Professor {
-  *CPF,
-  Nome
+Curso {
+  *Sigla,
+  Nome,
+  Custo,
+  ~Horas,
+  ++Professores (CPF_Professor, Nome_Professor)
 }
+
+// --- ENTIDADES FRACAS ---
 
 entidade fraca Modulo {
   _Sigla_,
@@ -85,30 +91,48 @@ entidade fraca Topico {
   Horas
 }
 
+// --- RELACIONAMENTOS ---
+
+// Curso pertence obrigatoriamente a uma Área
 pertence (Curso N : 1 Area)
+
+// Relacionamento Recursivo com Papéis
 integra (Area [integrante] N : 1 Area [integrada])
+
+// Professor ministra Cursos
 ministra (Professor N : N Curso)
 
+// Matrícula de Aluno em Curso (com atributos do relacionamento)
 matricula (Aluno N : N Curso) {
-  Data,
+  DataMatricula,
   Pago
 }
 
+// Relacionamentos Identificadores (Entidades Fracas)
 relacionamento fraco compoe_curso (Curso 1 : N Modulo)
 relacionamento fraco compoe_modulo (Modulo 1 : N Topico)
+```
 
-## Escrita Recomendada (Parser-Friendly)
-- Escreva um bloco por vez e evite frases longas no mesmo trecho do script ER.
-- Para entidade fraca, mantenha o padrao: entidade fraca Nome { ... }.
-- Para relacionamento identificador, mantenha o padrao: relacionamento fraco Nome (A 1 : N B).
-- Em relacionamentos recursivos, sempre explicite papeis com [papel].
-- Em relacionamentos com atributos, use: NomeRel (...) { Atributo1, Atributo2 }.
-- Para n-ario, use separacao por dois pontos: Rel (A N : B 1 : C N).
+---
 
-## Checklist de Validacao
-- Toda entidade forte possui chave primaria.
-- Toda entidade fraca possui chave parcial e relacionamento identificador.
-- Relacionamentos possuem no minimo duas entidades conectadas.
-- Relacionamento recursivo integra possui papeis definidos.
-- Relacionamento matricula possui atributos de relacionamento.
-- Participacao total das entidades fracas pode ser marcada no inspetor por lado.
+## 3. Instruções de Ajuste Visual e Conexões Manuais
+
+Após a geração automática do diagrama:
+
+1. **Atributo Composto (`Nome` de Aluno)**:
+   - No canvas, utilize a ferramenta **Conectar (tecla `C`)** para ligar o atributo `Nome` a `PrimeiroNome` e `Sobrenome`.
+2. **Auto-Layout**:
+   - Clique em **"Auto-Layout"** na barra superior se desejar reorganizar os nós.
+3. **Exportação Acadêmica**:
+   - Utilize a opção **Exportar → PNG** ou **SVG** no menu principal para gerar a versão formal em **preto e branco (Notação Peter Chen)** ideal para relatórios acadêmicos e documentação de software.
+
+---
+
+## 4. Matriz de Rastreabilidade (Minimundo vs. Modelo ER)
+
+- **"Cursos categorizados por áreas... curso obrigatoriamente pertence a uma área"**: Relacionamento `pertence (Curso N : 1 Area)` com cardinalidade (1,1) no lado do Curso.
+- **"Uma área pode ser integrada por outras áreas... integrante de uma única área"**: Auto-relacionamento `integra (Area [integrante] N : 1 Area [integrada])`.
+- **"Módulos não existem sem vínculo a um curso"**: Entidade Fraca `Modulo` com relacionamento identificador fraco `compoe_curso`.
+- **"Tópico só existe em função de um módulo"**: Entidade Fraca `Topico` encadeada ao `Modulo` com relacionamento identificador fraco `compoe_modulo`.
+- **"Data e se o aluno pagou a matrícula"**: Atributos `DataMatricula` e `Pago` anexados ao losango `MATRICULA`.
+- **"Horas do curso derivadas da totalização"**: Atributo derivado `~Horas` em `Curso` (elipse tracejada).

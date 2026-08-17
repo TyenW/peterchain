@@ -1,6 +1,6 @@
 # Guia Prático de Pseudo-Código — DER Builder
 
-Este documento ensina **como escrever código ER** no editor do DER Builder. Cada construção é mostrada com a **sintaxe exata**, **exemplos copiáveis** e **notas sobre o que acontece por baixo dos panos**.
+Este documento ensina **como escrever código ER/EER** no editor do DER Builder. Cada construção é mostrada com a **sintaxe exata**, **exemplos copiáveis** e **notas sobre o comportamento do parser e da notação visual de Peter Chen**.
 
 ---
 
@@ -27,11 +27,11 @@ Este documento ensina **como escrever código ER** no editor do DER Builder. Cad
 
 ## 1. Regras Gerais
 
-- O código é **case-insensitive** para palavras-chave (`entidade fraca`, `Entidade Fraca` e `ENTIDADE FRACA` funcionam igual).
-- Atributos dentro de chaves `{ }` são separados por **vírgula**, **ponto e vírgula** ou **quebra de linha**.
-- Cada **bloco** (entidade ou relacionamento) é processado na ordem em que aparece.
-- Linhas que não casarem com nenhum padrão reconhecido geram um aviso amarelo no terminal: `"Linha não reconhecida"`.
-- Linhas começando com `//` ou `#` são **comentários** e são ignoradas.
+- O código é **case-insensitive** para palavras-chave (`entidade fraca`, `Entidade Fraca` e `ENTIDADE FRACA` têm o mesmo efeito).
+- Atributos dentro de chaves `{ }` podem ser separados por **vírgula**, **ponto e vírgula** ou **quebra de linha**.
+- Cada **bloco** (entidade, relacionamento ou especialização) é processado independentemente.
+- Linhas que não casarem com nenhum padrão válido geram um aviso no terminal: `Aviso: Linha não reconhecida`.
+- Linhas que iniciam com `//` ou `#` são **comentários** e são desconsideradas.
 
 ---
 
@@ -39,10 +39,12 @@ Este documento ensina **como escrever código ER** no editor do DER Builder. Cad
 
 ```
 // Isto é um comentário (ignorado pelo parser)
-# Isto também é um comentário
+# Isto também é um comentário de linha inteira
+Aluno {
+  *CPF, // Comentário inline ao lado do atributo
+  Nome
+}
 ```
-
-Use comentários para anotar decisões de modelagem, separar seções ou desabilitar trechos temporariamente.
 
 ---
 
@@ -66,10 +68,10 @@ Aluno {
 }
 ```
 
-**O que acontece:**
-- Cria a entidade `ALUNO` (retângulo simples).
-- Cria cada atributo listado (elipses conectadas ao retângulo).
-- O prefixo `*` marca `Matricula` como **chave primária** (texto sublinhado).
+**Representação Visual (Peter Chen):**
+- **Retângulo simples** com nome em caixa alta.
+- **Elipses simples** para atributos comuns.
+- **Elipse com texto sublinhado sólido** para a chave primária (`*Matricula`).
 
 ---
 
@@ -78,8 +80,8 @@ Aluno {
 **Sintaxe:**
 ```
 entidade fraca NomeDaEntidade {
-  atributo1,
-  atributo2
+  _ChaveParcial_,
+  Atributo
 }
 ```
 
@@ -91,23 +93,25 @@ entidade fraca Dependente {
 }
 ```
 
-**O que acontece:**
-- Cria a entidade `DEPENDENTE` com **retângulo de borda dupla**.
-- O prefixo `_..._` marca `NomeDependente` como **chave parcial/discriminador** (sublinhado tracejado).
+**Representação Visual (Peter Chen):**
+- **Retângulo de borda dupla** para a entidade fraca.
+- **Elipse com texto sublinhado tracejado** para a chave parcial / discriminador (`_NomeDependente_`).
+
+> **Importante:** A chave parcial deve começar e terminar com underscore: `_NomeDependente_` ou `_Sigla_`.
 
 ---
 
 ## 5. Tipos de Atributo (Prefixos)
 
-Dentro das chaves `{ }`, cada atributo pode ser precedido por um **prefixo** que define seu tipo:
+Dentro das chaves `{ }`, cada atributo pode utilizar um prefixo para determinar seu tipo:
 
-| Prefixo | Tipo | Representação Gráfica | Exemplo |
+| Prefixo | Tipo ER | Representação Gráfica | Exemplo |
 |---|---|---|---|
 | *(nenhum)* | Atributo simples | Elipse simples | `Nome` |
-| `*` ou `#` | **Chave primária** | Elipse com sublinhado sólido | `*CPF` |
-| `_nome_` | **Chave parcial** (discriminador) | Elipse com sublinhado tracejado | `_Sigla_` |
+| `*` ou `#` | **Chave Primária** | Elipse com sublinhado sólido | `*CPF` |
+| `_nome_` | **Chave Parcial** | Elipse com sublinhado tracejado | `_Sigla_` |
 | `++` | **Multivalorado** | Elipse de borda dupla | `++Telefones` |
-| `[]` (sufixo) | **Multivalorado** (alternativo) | Elipse de borda dupla | `Telefones[]` |
+| `[]` (sufixo) | **Multivalorado** (alt.) | Elipse de borda dupla | `Telefones[]` |
 | `~` | **Derivado** | Elipse de borda tracejada | `~Idade` |
 
 **Exemplo com todos os tipos:**
@@ -120,12 +124,6 @@ Funcionario {
   Emails[]
 }
 ```
-
-**Notas importantes:**
-- `*` e `#` são equivalentes: ambos marcam chave primária.
-- Para **chave parcial**, o nome deve estar envolvido por underscores: `_NomeDependente_`.
-- Palavras como `(chave)`, `(pk)`, `(key)`, `(id)`, `(identificador)` no final do nome também ativam a flag de chave: `CPF (chave)`.
-- Nomes que contenham `cpf`, `codigo`, `matricula`, `id`, `crm` ou `numero` são automaticamente reconhecidos como chave.
 
 ---
 
@@ -140,27 +138,19 @@ Onde `CARD` pode ser `1`, `N` ou `M`.
 
 **Exemplos:**
 ```
-// Um para Muitos
+// Um para Muitos (1:N)
 pertence (Curso N : 1 Area)
 
-// Muitos para Muitos
+// Muitos para Muitos (N:N)
 matricula (Aluno N : N Curso)
 
-// Um para Um
+// Um para Um (1:1)
 possui (Pessoa 1 : 1 Passaporte)
 ```
 
-**O que acontece:**
-- Cria o relacionamento (losango simples).
-- Cria automaticamente as entidades se elas ainda não existirem.
-- Conecta tudo com as cardinalidades especificadas.
-
-**Variações aceitas de separador:**
-```
-matricula (Aluno N : N Curso)      // dois pontos
-matricula (Aluno N - N Curso)      // hífen
-matricula (Aluno (N) <-> (N) Curso)  // parênteses + setas
-```
+**Representação Visual (Peter Chen):**
+- **Losango simples** contendo o nome do relacionamento.
+- Conexões com linhas simples indicando a cardinalidade (`1`, `N`, `M`).
 
 ---
 
@@ -173,18 +163,18 @@ relacionamento fraco nomeRel (EntidadeForte 1 : N EntidadeFraca)
 
 **Exemplo:**
 ```
-relacionamento fraco possui (Funcionario 1 : N Dependente)
+relacionamento fraco compoe_curso (Curso 1 : N Modulo)
 ```
 
-**O que acontece:**
-- Cria o relacionamento com **losango de borda dupla**.
-- A conexão com a entidade fraca recebe automaticamente **participação total** (linha dupla).
+**Representação Visual (Peter Chen):**
+- **Losango de borda dupla** indicando relacionamento identificador.
+- A linha de conexão com a entidade fraca é desenhada com **linha dupla (participação total)**.
 
 ---
 
 ## 8. Relacionamentos com Atributos
 
-Em relacionamentos N:N é comum que a associação possua atributos próprios (ex: data, nota). O DER Builder permite definir atributos logo após a declaração de cardinalidade, dentro de chaves `{ }`.
+Em relacionamentos N:N, atributos específicos da associação podem ser informados em chaves `{ }` logo após a declaração:
 
 **Sintaxe:**
 ```
@@ -202,15 +192,14 @@ matricula (Aluno N : N Curso) {
 }
 ```
 
-**O que acontece:**
-- Cria o relacionamento `MATRICULA` (losango).
-- Cria os atributos `DataMatricula` e `Pago` ligados diretamente ao losango.
+**Representação Visual (Peter Chen):**
+- Elipses de atributos conectadas diretamente ao **losango do relacionamento**.
 
 ---
 
 ## 9. Relacionamentos Recursivos e Role Names
 
-Quando a **mesma entidade** participa duas vezes no mesmo relacionamento, use **nomes de papel** entre colchetes `[papel]` para distinguir os dois lados.
+Quando uma entidade se relaciona com ela mesma, utilize papéis entre colchetes `[papel]` para diferenciar as pontas:
 
 **Sintaxe:**
 ```
@@ -219,12 +208,13 @@ nomeRel (Entidade [papel1] CARD : CARD Entidade [papel2])
 
 **Exemplo:**
 ```
+integra (Area [integrante] N : 1 Area [integrada])
 supervisiona (Funcionario [supervisor] 1 : N Funcionario [subordinado])
 ```
 
-**O que acontece:**
-- Cria duas conexões da mesma entidade ao losango.
-- Cada conexão exibe o rótulo do papel (`[supervisor]`, `[subordinado]`) sobre a linha.
+**Representação Visual (Peter Chen):**
+- Duas linhas ligando a mesma entidade ao losango.
+- Rótulos textuais (`[integrante]`, `[integrada]`) posicionados sobre as linhas de conexão.
 
 ---
 
@@ -232,28 +222,21 @@ supervisiona (Funcionario [supervisor] 1 : N Funcionario [subordinado])
 
 **Sintaxe:**
 ```
-especializacao TIPO (SuperEntidade -> SubEntidade1, SubEntidade2, ...)
+especializacao TIPO (SuperEntidade -> SubEntidade1, SubEntidade2)
 ```
 
-Onde `TIPO` é:
+Onde `TIPO` pode ser:
 - `d` = **Disjunta** (mutuamente exclusiva)
 - `o` = **Sobreposta** (pode pertencer a mais de uma)
 
-**Exemplos:**
+**Exemplo:**
 ```
-// Disjunta: Pessoa é OU Aluno OU Professor, nunca ambos
 especializacao d (Pessoa -> Aluno, Professor)
-
-// Sobreposta: Funcionário pode ser Engenheiro E Gerente ao mesmo tempo
 especializacao o (Funcionario -> Engenheiro, Gerente)
 ```
 
-**Sinônimos aceitos:** `herança` funciona no lugar de `especializacao`.
-
-**O que acontece:**
-- Cria a superentidade e as subentidades (se não existirem).
-- Desenha um **círculo intermediário** com a letra `d` ou `o`.
-- Conecta o círculo à superentidade e a cada subentidade.
+**Representação Visual (EER):**
+- Um **círculo** intermediário contendo a letra `d` ou `o` interligando a superentidade às subentidades.
 
 ---
 
@@ -269,88 +252,48 @@ categoria u (SubClasse -> SuperClasse1, SuperClasse2)
 categoria u (Proprietario -> Pessoa, Empresa)
 ```
 
-**O que acontece:**
-- Cria a subclasse-categoria e as superclasses.
-- Desenha um **círculo com a letra `u`** interligando-as.
-
 ---
 
 ## 12. Comandos Incrementais (modo console)
 
-Depois de gerar o diagrama pela primeira vez (botão "Executar Código"), você pode modificar o diagrama com **comandos de uma linha**:
+Você pode enviar comandos de uma linha no terminal inferior para alterar o diagrama existente:
 
-### Criar entidade
 ```
 criar entidade Professor
-nova entidade Departamento
-```
-
-### Adicionar atributo
-```
+criar entidade fraca Dependente
 adicionar atributo Email em Aluno
 adicionar atributo chave CRM em Medico
-criar atributo Telefone em Cliente
-```
-
-### Criar relacionamento
-```
-criar relacionamento ministra entre Professor e Curso
-criar relacionamento ministra entre Professor e Curso (cardinalidade 1:N)
+criar relacionamento ministra entre Professor e Curso (1:N)
 criar relacionamento fraco possui entre Funcionario e Dependente
 ```
-
-**Dica:** digite o comando e pressione Enter para executar diretamente (somente se a linha **não** estiver em um bloco multilinha).
 
 ---
 
 ## 13. Comandos de Exclusão
 
 ```
-// Excluir uma entidade e todas as suas conexões
 deletar entidade Curso
-excluir entidade Aluno
-remover entidade Professor
-drop entidade Departamento
-
-// Excluir um atributo
-deletar atributo Email
-excluir atributo Telefone
-
-// Excluir um relacionamento
-deletar relacionamento Matricula
-excluir relacionamento Ministra
-
-// Limpar o diagrama inteiro
+excluir atributo Email
+remover relacionamento Ministra
 limpar
-limpar diagrama
-clear
 ```
 
 ---
 
-## 14. Atributos Compostos (manual)
+## 14. Atributos Compostos
 
-Atributos compostos (ex: `Endereco` → `Rua`, `CEP`, `Cidade`) não possuem uma sintaxe de bloco específica. Para criá-los:
+Atributos compostos (ex: `Nome` formado por `PrimeiroNome` e `Sobrenome`) podem ser declarados diretamente no pseudo-código usando a sintaxe de parênteses ou seta:
 
-1. Declare o atributo pai e os subatributos na entidade:
-   ```
-   Cliente {
-     *CPF,
-     Endereco,
-     Rua,
-     CEP,
-     Cidade
-   }
-   ```
+**Sintaxe no Código:**
+```
+Aluno {
+  *CPF,
+  Nome (PrimeiroNome, Sobrenome),
+  Sexo
+}
+```
 
-2. Após gerar o diagrama, use a **ferramenta Conectar** (tecla `C`) para ligar:
-   - `Endereco` → `Rua`
-   - `Endereco` → `CEP`
-   - `Endereco` → `Cidade`
-
-Graficamente, isso cria a hierarquia de elipses da notação de Peter Chen.
-
-**Para múltiplos níveis** (ex: `Endereco` → `Localizacao` → `Latitude`, `Longitude`), repita o processo conectando atributo a atributo.
+O parser criará automaticamente a elipse pai `Nome` ligada à entidade `Aluno` e conectará as elipses filhas `PrimeiroNome` e `Sobrenome` diretamente a `Nome`.
 
 ---
 
@@ -361,8 +304,6 @@ Graficamente, isso cria a hierarquia de elipses da notação de Peter Chen.
 // SAM — Sistema Acadêmico de Matrículas v1.0
 // =============================================
 
-// --- ENTIDADES FORTES ---
-
 Area {
   *Sigla,
   Nome
@@ -372,19 +313,21 @@ Curso {
   *Sigla,
   Nome,
   Custo,
-  ~Horas
+  ~Horas,
+  ++Professores (CPF_Professor, Nome_Professor)
 }
 
 Aluno {
   *CPF,
-  Nome,
-  PrimeiroNome,
-  Sobrenome,
+  Nome (PrimeiroNome, Sobrenome),
   Sexo,
   DataNascimento
 }
 
-// --- ENTIDADES FRACAS ---
+Professor {
+  *CPF,
+  Nome
+}
 
 entidade fraca Modulo {
   _Sigla_,
@@ -397,76 +340,27 @@ entidade fraca Topico {
   Horas
 }
 
-// --- RELACIONAMENTOS ---
-
 pertence (Curso N : 1 Area)
 integra (Area [integrante] N : 1 Area [integrada])
+ministra (Professor N : N Curso)
 
 matricula (Aluno N : N Curso) {
   DataMatricula,
   Pago
 }
 
-relacionamento fraco compoe_modulo (Curso 1 : N Modulo)
-relacionamento fraco compoe_topico (Modulo 1 : N Topico)
-
-// --- ESPECIALIZAÇÃO EER ---
-// especializacao d (Pessoa -> Aluno, Professor)
-
-// --- ATRIBUTOS COMPOSTOS (conectar manualmente) ---
-// Nome (Aluno) → PrimeiroNome, Sobrenome
+relacionamento fraco compoe_curso (Curso 1 : N Modulo)
+relacionamento fraco compoe_modulo (Modulo 1 : N Topico)
 ```
 
 ---
 
 ## 16. Erros Comuns e Como Evitá-los
 
-| ❌ Errado | ✅ Correto | Por quê |
+| ❌ Errado | ✅ Correto | Motivo |
 |---|---|---|
-| `Aluno { CPF chave }` | `Aluno { *CPF }` | Use o prefixo `*` para marcar chave, não a palavra "chave" solta. |
-| `Aluno { ~idade, ++tel }` → dentro de parênteses `()` | Manter em chaves `{}` | Parênteses `()` são reservados para relacionamentos. |
-| `matricula (Aluno Curso)` | `matricula (Aluno N : N Curso)` | A cardinalidade é obrigatória no formato de bloco. |
-| `entidadefraca Dep { }` | `entidade fraca Dep { }` | Precisa do espaço entre `entidade` e `fraca`. |
-| `especializacao d Pessoa Aluno Professor` | `especializacao d (Pessoa -> Aluno, Professor)` | Parênteses e `->` são obrigatórios na sintaxe de especialização. |
-| `_NomeDep` (sem fechar) | `_NomeDep_` | A chave parcial exige underscores nos dois lados. |
-| Bloco com `{ }` vazio | Mínimo 1 atributo | Gera aviso de "entidade sem atributos" no validador. |
-
----
-
-## Referência Rápida (Cola)
-
-```
-// Entidade forte
-Nome { *Chave, Atributo, ~Derivado, ++Multivalorado }
-
-// Entidade fraca
-entidade fraca Nome { _ChaveParcial_, Atributo }
-
-// Relacionamento (com cardinalidade)
-nomeRel (Entidade1 CARD : CARD Entidade2)
-
-// Relacionamento fraco
-relacionamento fraco nomeRel (EntForte 1 : N EntFraca)
-
-// Relacionamento com atributos
-nomeRel (Ent1 N : N Ent2) { Atrib1, Atrib2 }
-
-// Relacionamento recursivo com papéis
-nomeRel (Ent [papel1] CARD : CARD Ent [papel2])
-
-// Especialização EER
-especializacao d|o (Super -> Sub1, Sub2)
-
-// Categoria / União
-categoria u (Sub -> Super1, Super2)
-
-// Comentário
-// texto ignorado
-
-// Comandos incrementais
-criar entidade NomeDaEntidade
-adicionar atributo NomeAtrib em NomeEntidade
-criar relacionamento NomeRel entre Ent1 e Ent2
-deletar entidade NomeDaEntidade
-limpar diagrama
-```
+| `Aluno { CPF chave }` | `Aluno { *CPF }` | Use o prefixo `*` para declarar chave primária. |
+| `_NomeDependente` | `_NomeDependente_` | Chave parcial precisa de underscore no início e no fim. |
+| `matricula (Aluno Curso)` | `matricula (Aluno N : N Curso)` | Cardinalidade é obrigatória em relacionamentos. |
+| `entidadefraca Dep { }` | `entidade fraca Dep { }` | É necessário o espaço entre `entidade` e `fraca`. |
+| `especializacao d Pessoa -> Aluno` | `especializacao d (Pessoa -> Aluno, Professor)` | Parênteses são obrigatórios em especializações. |

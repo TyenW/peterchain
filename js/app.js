@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (!appendOnly) {
-      renderer.resetZoomAndPan();
+      setTimeout(() => renderer.zoomToFit(), 50);
       isDiagramGenerated = true;
     }
   }
@@ -239,6 +239,37 @@ document.addEventListener('DOMContentLoaded', () => {
     btnCmdHelp.addEventListener('click', () => modalCommands.classList.remove('hidden'));
   }
   document.getElementById('btn-close-modal-commands').addEventListener('click', () => modalCommands.classList.add('hidden'));
+
+  // Copiar e Carregar trechos do Guia de Comandos
+  document.querySelectorAll('.btn-copy-code').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const code = btn.getAttribute('data-code');
+      if (code) {
+        navigator.clipboard.writeText(code).then(() => {
+          const originalText = btn.innerHTML;
+          btn.innerHTML = '✓ Copiado!';
+          btn.classList.add('copied');
+          setTimeout(() => {
+            btn.innerHTML = originalText;
+            btn.classList.remove('copied');
+          }, 2000);
+        }).catch(err => {
+          console.error('Erro ao copiar:', err);
+        });
+      }
+    });
+  });
+
+  document.querySelectorAll('.btn-load-code').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const code = btn.getAttribute('data-code');
+      if (code) {
+        nlpInput.value = code;
+        executeNLP(false);
+        modalCommands.classList.add('hidden');
+      }
+    });
+  });
 
   const modalProjects = document.getElementById('modal-projects');
   const btnProjectsModal = document.getElementById('btn-projects-modal');

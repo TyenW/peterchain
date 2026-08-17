@@ -82,33 +82,29 @@ class StorageExportManager {
     return false;
   }
 
-  // --- ESTILOS PETER CHEN FORMAL (PRETO E BRANCO ACADÊMICO) ---
+  // --- ESTILOS PETER CHEN FORMAL (PRETO E BRANCO ACADÊMICO DE ALTA PRECISÃO) ---
   getChenStylesheet() {
     return `
-      .entity-rect { fill: #e8e8e8; stroke: #000000; stroke-width: 2px; rx: 0; }
-      .entity-rect.inner { fill: transparent; stroke: #000000; stroke-width: 1.5px; rx: 0; }
-      .attribute-ellipse { fill: #f0f0f0; stroke: #000000; stroke-width: 1.5px; }
-      .attribute-ellipse.inner { fill: transparent; stroke: #000000; stroke-width: 1.2px; }
+      .entity-rect { fill: #f4f4f5; stroke: #000000; stroke-width: 2px; rx: 0; }
+      .entity-rect.inner { fill: none; stroke: #000000; stroke-width: 1.5px; rx: 0; }
+      .attribute-ellipse { fill: #ffffff; stroke: #000000; stroke-width: 1.5px; }
+      .attribute-ellipse.inner { fill: none; stroke: #000000; stroke-width: 1.2px; }
       .attribute-ellipse.derived { stroke-dasharray: 6 4; }
-      .relationship-polygon { fill: #d9d9d9; stroke: #000000; stroke-width: 2px; }
-      .relationship-polygon.inner { fill: transparent; stroke: #000000; stroke-width: 1.5px; }
+      .relationship-polygon { fill: #e4e4e7; stroke: #000000; stroke-width: 2px; }
+      .relationship-polygon.inner { fill: none; stroke: #000000; stroke-width: 1.5px; }
       .specialization-circle { fill: #ffffff; stroke: #000000; stroke-width: 2px; }
-      .specialization-text { font-family: 'Times New Roman', serif; font-size: 14px; font-weight: 700; fill: #000000; text-anchor: middle; dominant-baseline: central; }
-      .element-text { font-family: 'Times New Roman', serif; font-size: 13px; fill: #000000; text-anchor: middle; dominant-baseline: central; }
-      .entity-text { font-weight: 700; font-size: 14px; }
+      .specialization-text { font-family: 'Times New Roman', Times, serif; font-size: 14px; font-weight: 700; fill: #000000; text-anchor: middle; dominant-baseline: central; }
+      .element-text { font-family: 'Times New Roman', Times, serif; font-size: 13px; fill: #000000; text-anchor: middle; dominant-baseline: central; }
+      .entity-text { font-weight: 700; font-size: 14px; letter-spacing: 0.5px; }
       .attribute-text.key-attribute { text-decoration: underline; font-weight: 700; fill: #000000; }
       .attribute-text.key-partial-attribute { text-decoration: underline dotted; font-weight: 600; fill: #000000; }
-      .relationship-text { font-weight: 700; font-size: 13px; fill: #000000; }
-      .connection-line { stroke: #000000; stroke-width: 1.5px; }
+      .relationship-text { font-weight: 700; font-size: 13px; fill: #000000; letter-spacing: 0.5px; }
+      .connection-line { fill: none; stroke: #000000; stroke-width: 1.8px; stroke-linecap: round; stroke-linejoin: round; }
       .connection-line.total { stroke-width: 4px; }
-      .connection-line.total-side { stroke-width: 1.5px; }
-      .cardinality-badge { font-family: 'Times New Roman', serif; font-size: 13px; font-weight: 700; fill: #000000; text-anchor: middle; dominant-baseline: central; }
-      .role-text { font-family: 'Times New Roman', serif; font-size: 11px; fill: #333333; text-anchor: middle; }
-      .selected { stroke: #000000 !important; }
-      [class*="element-group"].selected rect,
-      [class*="element-group"].selected ellipse,
-      [class*="element-group"].selected polygon,
-      [class*="element-group"].selected circle { stroke: #000000 !important; }
+      .connection-line.total-side { stroke-width: 1.8px; }
+      .cardinality-bg { fill: #ffffff; stroke: #000000; stroke-width: 1px; rx: 3px; }
+      .cardinality-badge { font-family: 'Times New Roman', Times, serif; font-size: 13px; font-weight: 700; fill: #000000; text-anchor: middle; dominant-baseline: central; }
+      .role-text { font-family: 'Times New Roman', Times, serif; font-size: 12px; font-weight: 600; fill: #000000; text-anchor: middle; }
     `;
   }
 
@@ -119,7 +115,7 @@ class StorageExportManager {
 
     const viewportGroup = document.getElementById('viewport-group');
     const bbox = viewportGroup ? viewportGroup.getBBox() : { x: 0, y: 0, width: 800, height: 600 };
-    const padding = 80;
+    const padding = 100;
     const width = Math.max(800, bbox.width + padding * 2);
     const height = Math.max(600, bbox.height + padding * 2);
     const minX = bbox.width > 0 ? bbox.x - padding : 0;
@@ -137,6 +133,9 @@ class StorageExportManager {
       cloneViewport.setAttribute('transform', 'translate(0, 0) scale(1)');
     }
 
+    // Remover seleção e bordas temporárias do clone
+    clone.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+
     // Remover grade de fundo se existir
     const grid = clone.querySelector('#grid-pattern');
     if (grid) grid.parentNode.removeChild(grid);
@@ -148,14 +147,14 @@ class StorageExportManager {
     styleElement.textContent = this.getChenStylesheet();
     clone.prepend(styleElement);
 
-    // Adicionar fundo branco
+    // Adicionar fundo branco puro
     const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     bg.setAttribute('x', minX);
     bg.setAttribute('y', minY);
     bg.setAttribute('width', width);
     bg.setAttribute('height', height);
     bg.setAttribute('fill', '#ffffff');
-    clone.insertBefore(bg, clone.children[1]); // Depois do <style>, antes do conteúdo
+    clone.insertBefore(bg, clone.children[1]);
 
     return { clone, width, height, minX, minY };
   }
@@ -170,13 +169,13 @@ class StorageExportManager {
     this.downloadBlob(blob, filename);
   }
 
-  // --- EXPORTAR PNG (PRETO E BRANCO — NOTAÇÃO PETER CHEN, 3x RESOLUÇÃO) ---
+  // --- EXPORTAR PNG (PRETO E BRANCO — NOTAÇÃO PETER CHEN, ULTRA ALTA RESOLUÇÃO 4X) ---
   exportPNG(filename = 'diagrama_der.png') {
     const result = this.prepareExportClone();
     if (!result) return;
 
     const { clone, width, height } = result;
-    const scale = 3; // Alta resolução para impressão
+    const scale = 4; // Ultra alta definição para publicação (4x = ~300 DPI)
 
     const svgData = new XMLSerializer().serializeToString(clone);
     const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
@@ -189,9 +188,13 @@ class StorageExportManager {
       canvas.width = width * scale;
       canvas.height = height * scale;
       const ctx = canvas.getContext('2d');
+
+      // Suavização e alta qualidade de renderização
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
       ctx.scale(scale, scale);
 
-      // Fundo branco puro para impressão
+      // Fundo branco puro
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, width, height);
 
