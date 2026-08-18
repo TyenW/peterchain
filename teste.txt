@@ -1,19 +1,36 @@
-Area{
+  Area{
+    *Sigla
+    Nome
+  }
+  Curso{
+    ++Professores[CPF,Nome]
+    *Sigla
+    Custo
+    ~Hora
+    Nome
+  }
+  Aluno{
+    *CPF
+    Nome[Primeiro Nome,Sobrenome]
+    Sexo
+    Data de Nascimento
+    }
+  Modulo{
   *Sigla
   Nome
-}
-Curso{
-++Professores[CPF,Nome]
-+Sigla
-Custo
-~Hora
-Nome
-}
+  }
+  entidade fraca Topico{
+    ~Sigla
+    Nome
+    Hora
+  }
 
 
-
-
-
-
-possui()
-integra(Area[integrante]n:1 Area[integrada])
+  possui(+Curso N:1 Area)
+  integra(Area[integrante] N:1 Area[integrada])
+  inscreve(Aluno N:N Curso){
+  Pago
+  Data
+  }
+  relacionamento fraco Compoem(+Topico N:1 Modulo)
+  Compor(+Modulo N:1 Curso)

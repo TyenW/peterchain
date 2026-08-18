@@ -64,7 +64,7 @@ class NLPParser {
 
   toSingular(word) {
     if (!word) return '';
-    const w = word.trim().toLowerCase();
+    let w = word.trim().replace(/^[!*#~_+]+|[!*#~_+]+$/g, '').trim().toLowerCase();
     if (w.length <= 3) return w;
     if (w.endsWith('ões')) return w.slice(0, -3) + 'ão';
     if (w.endsWith('ães')) return w.slice(0, -3) + 'ão';
@@ -96,11 +96,11 @@ class NLPParser {
     // PASSO 1: Extrair especializações / categorias
     let remaining = this.extractSpecializations(cleanText);
 
-    // PASSO 2: Extrair relacionamentos com atributos: nome (Ent1 N:N Ent2) { attr1, attr2 }
-    remaining = this.extractRelationshipsWithAttributes(remaining);
-
-    // PASSO 3: Extrair blocos de entidade: Nome { atrib1, atrib2 }
+    // PASSO 2: Extrair blocos de entidade: Nome { atrib1, atrib2 }
     remaining = this.extractEntityBlocks(remaining);
+
+    // PASSO 3: Extrair relacionamentos com atributos: nome (Ent1 N:N Ent2) { attr1, attr2 }
+    remaining = this.extractRelationshipsWithAttributes(remaining);
 
     // PASSO 4: Extrair relacionamentos em linha: nome (Ent1 N : N Ent2)
     remaining = this.extractInlineRelationships(remaining);
@@ -217,8 +217,10 @@ class NLPParser {
 
   extractInlineRelationships(text) {
     // nome (Ent1 [papel] N : N Ent2 [papel])
-    // relacionamento fraco nome (Ent1 1 : N Ent2)
-    const regex = /((?:relacionamento\s+fraco\s+|relacionamento\s+obrigatorio\s+|relacionamento\s+obrigatório\s+|relacionamento\s+total\s+|fraco\s+|obrigatorio\s+|obrigatório\s+|total\s+)?[a-záàâãéèêíóòôõúç0-9_]+)\s*\(\s*([^)]+)\s*\)/gi;
+    // total nome (Ent1 1 : N Ent2)
+    // obrigatorio nome (Ent1 1 : N Ent2)
+    // parcialobrigatorio nome (Ent1 1 : N Ent2)
+    const regex = /((?:relacionamento\s+fraco\s+|relacionamento\s+obrigatorio\s+|relacionamento\s+obrigatório\s+|relacionamento\s+total\s+|parcialobrigatorio\s+|parcialobrigatório\s+|parcial_obrigatorio\s+|fraco\s+|obrigatorio\s+|obrigatório\s+|total\s+|obrig\s+)?[a-záàâãéèêíóòôõúç0-9_]+)\s*\(\s*([^)]+)\s*\)/gi;
     let result = text;
     let match;
 
@@ -295,7 +297,7 @@ class NLPParser {
   //  PARSER DE TOKEN DE ATRIBUTO (com prefixos)
   // ======================================================================
 
-  parseAttributeToken(token, parentElement) {
+  parseAttributeToken(token, parentElement, isSubAttribute = false) {
     let isKey = false;
     let isPartialKey = false;
     let isMultivalued = false;
@@ -308,11 +310,11 @@ class NLPParser {
       const parentName = compMatch[1].trim();
       const subTokensText = compMatch[2].trim();
 
-      const parentAttr = this.parseAttributeToken(parentName, parentElement);
+      const parentAttr = this.parseAttributeToken(parentName, parentElement, isSubAttribute);
       if (parentAttr) {
         const subTokens = subTokensText.split(/[,;]/).map(t => t.trim()).filter(Boolean);
         subTokens.forEach(sub => {
-          this.parseAttributeToken(sub, parentAttr);
+          this.parseAttributeToken(sub, parentAttr, true); // passa isSubAttribute = true
         });
       }
       return parentAttr;
@@ -346,8 +348,8 @@ class NLPParser {
       isKey = true;
       cleanToken = cleanToken.replace(/\s*\((?:chave|pk|key|id|identificador)\)/i, '').trim();
     }
-    // 6. Chave por nome reconhecido
-    else if (this.isKeyAttributeName(cleanToken)) {
+    // 6. Chave por nome reconhecido (apenas se NÃO for um sub-atributo de um composto)
+    else if (!isSubAttribute && this.isKeyAttributeName(cleanToken)) {
       isKey = true;
     }
 
@@ -373,21 +375,27 @@ class NLPParser {
   processRelationshipSignature(relRawName, signatureText) {
     let cleanRaw = relRawName.trim();
     let isWeak = false;
-    let isMandatoryPrefix = false;
+    let isTotalBoth = false;
+    let isTotalSide1Only = false;
 
     // Detectar "relacionamento fraco" / "fraco"
     if (/^(?:relacionamento\s+fraco|fraco)\s+/i.test(cleanRaw)) {
       isWeak = true;
       cleanRaw = cleanRaw.replace(/^(?:relacionamento\s+fraco|fraco)\s+/i, '').trim();
     }
-    // Detectar "relacionamento obrigatorio" / "obrigatorio" / "total" / "obrig"
-    else if (/^(?:relacionamento\s+obrigat[óo]rio|obrigat[óo]rio|relacionamento\s+total|total|obrig)\s*/i.test(cleanRaw)) {
-      isMandatoryPrefix = true;
-      cleanRaw = cleanRaw.replace(/^(?:relacionamento\s+obrigat[óo]rio|obrigat[óo]rio|relacionamento\s+total|total|obrig)\s*/i, '').trim();
+    // Detectar "relacionamento total" / "total" (DOIS LADOS)
+    else if (/^(?:relacionamento\s+total|total)\s*/i.test(cleanRaw)) {
+      isTotalBoth = true;
+      cleanRaw = cleanRaw.replace(/^(?:relacionamento\s+total|total)\s*/i, '').trim();
+    }
+    // Detectar "obrigatorio" / "parcialobrigatorio" (LADO 1 OBRIGATÓRIO NA PRIMEIRA ENTIDADE)
+    else if (/^(?:relacionamento\s+obrigat[óo]rio|parcialobrigat[óo]rio|parcial_obrigat[óo]rio|obrigat[óo]rio|parcialobrig|obrig)\s*/i.test(cleanRaw)) {
+      isTotalSide1Only = true;
+      cleanRaw = cleanRaw.replace(/^(?:relacionamento\s+obrigat[óo]rio|parcialobrigat[óo]rio|parcial_obrigat[óo]rio|obrigat[óo]rio|parcialobrig|obrig)\s*/i, '').trim();
     }
 
-    if (cleanRaw.toLowerCase().startsWith('obrig') && cleanRaw.length > 5 && !isMandatoryPrefix) {
-      isMandatoryPrefix = true;
+    if (cleanRaw.toLowerCase().startsWith('obrig') && cleanRaw.length > 5 && !isTotalBoth && !isTotalSide1Only) {
+      isTotalSide1Only = true;
       cleanRaw = cleanRaw.replace(/^obrig/i, '').trim();
     }
 
@@ -398,29 +406,55 @@ class NLPParser {
 
     if (participants && participants.length >= 2) {
       const rel = this.createRelFromParticipants(relName, participants, isWeak);
-      if (isMandatoryPrefix && rel) {
+      if (isTotalBoth && rel) {
         this.model.connections.filter(c => c.sourceId === rel.id || c.targetId === rel.id).forEach(conn => {
           conn.isTotalSource = true;
           conn.isTotalTarget = true;
           conn.isTotal = true;
         });
+      } else if (isTotalSide1Only && rel) {
+        const firstConn = this.model.connections.find(c => c.sourceId === participants[0].entity.id || c.targetId === participants[0].entity.id);
+        if (firstConn) {
+          firstConn.isTotalSource = true;
+          firstConn.isTotal = true;
+        }
       }
       return rel;
     }
 
-    // Tentar formato binário com roles:
+    // Tentar formato binário com roles e marcadores:
     // Ent1 [papel1] N : N Ent2 [papel2]
     const binMatch = signatureText.match(
-      /^(.+?)\s*(?:\[([^\]]+)\])?\s*\(?\s*([1nmNM])\s*\)?\s*(?::|\-|–)\s*\(?\s*([1nmNM])\s*\)?\s*(.+?)\s*(?:\[([^\]]+)\])?\s*$/i
+      /^\s*([^\(\[\:–\-]+?)\s*(?:\[([^\]]+)\])?\s*\(?\s*([1nmNM])\s*\)?\s*(?::|\-|–)\s*\(?\s*([1nmNM])\s*\)?\s*([^\(\[\:–\-]+?)\s*(?:\[([^\]]+)\])?\s*$/i
     );
 
     if (binMatch) {
-      const entity1Name = this.toSingular(binMatch[1].trim());
-      const role1 = (binMatch[2] || '').trim();
+      let ent1TextRaw = binMatch[1].trim();
+      let role1 = (binMatch[2] || '').trim();
       const card1 = binMatch[3].toUpperCase();
       const card2 = binMatch[4].toUpperCase();
-      const entity2Name = this.toSingular(binMatch[5].trim());
-      const role2 = (binMatch[6] || '').trim();
+      let ent2TextRaw = binMatch[5].trim();
+      let role2 = (binMatch[6] || '').trim();
+
+      // Checa se o usuário colocou +, ++, ! ou palavras-chave indicando obrigatoriedade em apenas um lado
+      const isMandatoryPrefix = isTotalBoth || isTotalSide1Only;
+      let isTotal1 = isMandatoryPrefix || /^[\s\+!]+|[\+!]+$/i.test(ent1TextRaw) || /obrigat[óo]rio|total/i.test(ent1TextRaw);
+      let isTotal2 = isWeak || isMandatoryPrefix || /^[\s\+!]+|[\+!]+$/i.test(ent2TextRaw) || /obrigat[óo]rio|total/i.test(ent2TextRaw);
+
+      // Fallback robusto à prova de falhas de regex
+      if (ent1TextRaw.includes('+') || ent1TextRaw.includes('!')) isTotal1 = true;
+      if (ent2TextRaw.includes('+') || ent2TextRaw.includes('!')) isTotal2 = true;
+
+      console.group(`[Relacionamento] Analisando: ${relName}`);
+      console.log(`Entidade 1: "${ent1TextRaw}" -> isTotal: ${isTotal1} (Possui '+' ou '!': ${ent1TextRaw.includes('+') || ent1TextRaw.includes('!')})`);
+      console.log(`Entidade 2: "${ent2TextRaw}" -> isTotal: ${isTotal2} (Possui '+' ou '!': ${ent2TextRaw.includes('+') || ent2TextRaw.includes('!')})`);
+
+      // Limpar marcadores de nome de entidade (+, ++, !)
+      const ent1Text = ent1TextRaw.replace(/[\+!]+/g, '').replace(/obrigat[óo]rio|total/gi, '').trim();
+      const ent2Text = ent2TextRaw.replace(/[\+!]+/g, '').replace(/obrigat[óo]rio|total/gi, '').trim();
+
+      const entity1Name = this.toSingular(ent1Text);
+      const entity2Name = this.toSingular(ent2Text);
 
       const res1 = this.model.addEntity(entity1Name);
       const res2 = this.model.addEntity(entity2Name);
@@ -430,19 +464,19 @@ class NLPParser {
       const relRes = this.model.addRelationship(relName, 400, 200, isWeak);
       const rel = relRes.element || relRes;
 
-      // Participação total no lado fraco ou se o prefixo de relacionamento for obrigatório
-      const isTotalEnt1 = isMandatoryPrefix;
-      const isTotalEnt2 = isWeak || ent2.isWeak || isMandatoryPrefix;
+      // Adiciona conexões marcando a obrigatoriedade (linha dupla) no lado correto
+      if (ent2.isWeak) isTotal2 = true;
 
-      this.model.addConnection(ent1.id, rel.id, card1, '', { roleSource: role1, isTotalSource: isTotalEnt1, forceNew: true });
-      this.model.addConnection(rel.id, ent2.id, '', card2, { roleSource: role2, isTotalSource: isTotalEnt2, forceNew: true });
+      this.model.addConnection(ent1.id, rel.id, card1, '', { roleSource: role1, isTotalSource: isTotal1, isTotalTarget: false, isTotal: isTotal1, forceNew: true });
+      this.model.addConnection(rel.id, ent2.id, '', card2, { roleSource: role2, isTotalSource: false, isTotalTarget: isTotal2, isTotal: isTotal2, forceNew: true });
 
-      this.log(`Relacionamento [${rel.name}] ${isWeak ? '(FRACO) ' : ''}${isMandatoryPrefix ? '(OBRIGATÓRIO) ' : ''}(${card1}:${card2}) — ${ent1.name} ↔ ${ent2.name}`, 'success');
+      this.log(`Relacionamento [${rel.name}] ${isWeak ? '(FRACO) ' : ''}${isMandatoryPrefix ? '(OBRIGATÓRIO) ' : ''}(${card1}:${card2}) — ${ent1.name} (Total: ${isTotal1}) ↔ ${ent2.name} (Total: ${isTotal2})`, 'success');
 
       if (role1 || role2) {
         this.log(`  └─ Papéis: ${role1 || '—'} / ${role2 || '—'}`, 'info');
       }
 
+      console.groupEnd();
       return rel;
     }
 
@@ -456,6 +490,8 @@ class NLPParser {
 
   parseParticipants(bodyText) {
     if (!bodyText || !bodyText.trim()) return null;
+
+    console.log(`[DEBUG] parseParticipants recebeu o texto: "${bodyText}"`);
 
     // Dividir por : mas respeitando roles [...]
     const rawParts = bodyText.split(/\s*:\s*/);
@@ -472,7 +508,7 @@ class NLPParser {
 
       const res = this.model.addEntity(parsed.entityName);
       const entity = res.element || res;
-      participants.push({ entity, role: parsed.role, card: parsed.card });
+      participants.push({ entity, role: parsed.role, card: parsed.card, isTotal: parsed.isTotal });
     }
 
     return participants.length >= 2 ? participants : null;
@@ -481,26 +517,33 @@ class NLPParser {
   parseParticipantPart(raw) {
     if (!raw) return null;
 
+    // Detectar + ou ! para obrigatoriedade
+    const isTotal = raw.includes('+') || raw.includes('!') || /obrigat[óo]rio|total/i.test(raw);
+
     // Formato: Entidade [papel] N  ou  Entidade N  ou  N Entidade [papel]
     let m;
 
     // Tentar: NomeEntidade [papel] N
     m = raw.match(/^(.+?)\s*(?:\[([^\]]+)\])?\s*\(?\s*([1nmNM])\s*\)?\s*$/i);
     if (m && m[1].trim()) {
+      const cleanEnt = m[1].trim().replace(/[\+!]+|obrigat[óo]rio|obrig|total/gi, '').trim();
       return {
-        entityName: this.toSingular(m[1].trim()),
+        entityName: this.toSingular(cleanEnt),
         role: (m[2] || '').trim(),
-        card: m[3].toUpperCase()
+        card: m[3].toUpperCase(),
+        isTotal
       };
     }
 
     // Tentar: N NomeEntidade [papel]
     m = raw.match(/^\(?\s*([1nmNM])\s*\)?\s+(.+?)\s*(?:\[([^\]]+)\])?\s*$/i);
     if (m && m[2].trim()) {
+      const cleanEnt = m[2].trim().replace(/[\+!]+|obrigat[óo]rio|obrig|total/gi, '').trim();
       return {
-        entityName: this.toSingular(m[2].trim()),
+        entityName: this.toSingular(cleanEnt),
         role: (m[3] || '').trim(),
-        card: m[1].toUpperCase()
+        card: m[1].toUpperCase(),
+        isTotal
       };
     }
 
@@ -525,13 +568,20 @@ class NLPParser {
 
     const weakParticipants = participants.filter(p => p.entity.isWeak);
 
+    console.group(`[Relacionamento] Analisando: ${rel.name} (via parseParticipants)`);
+
     participants.forEach((p, idx) => {
       const isWeakSide = weakParticipants.includes(p);
-      const isTotalSource = isWeakSide || (isWeak && idx === participants.length - 1 && weakParticipants.length === 0);
+      const isTotalSource = p.isTotal || isWeakSide || (isWeak && idx === participants.length - 1 && weakParticipants.length === 0);
+
+      console.log(`Participante: "${p.entity.name}" -> isTotal: ${isTotalSource}`);
 
       this.model.addConnection(p.entity.id, rel.id, p.card, '', {
         roleSource: p.role,
-        isTotalSource
+        isTotalSource,
+        isTotalTarget: false,
+        isTotal: isTotalSource,
+        forceNew: true
       });
     });
 
@@ -539,6 +589,7 @@ class NLPParser {
     const names = participants.map(p => p.entity.name).join(' ↔ ');
     this.log(`Relacionamento [${rel.name}] ${isWeak ? '(FRACO) ' : ''}(${cards}) — ${names}`, 'success');
 
+    console.groupEnd();
     return rel;
   }
 

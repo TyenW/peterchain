@@ -20,7 +20,7 @@ class CanvasRenderer {
     this.maxZoom = 3.0;
 
     // Estado da seleção
-    this.selectedElementId = null;
+    this.selectedElementIds = new Set();
     this.selectedConnectionId = null;
 
     // Callbacks
@@ -98,26 +98,75 @@ class CanvasRenderer {
     return { x, y };
   }
 
+  // --- GETTER & SETTER RETROCOMPATÍVEL ---
+  get selectedElementId() {
+    if (this.selectedElementIds.size === 1) {
+      return Array.from(this.selectedElementIds)[0];
+    }
+    return null;
+  }
+
+  set selectedElementId(id) {
+    this.selectedElementIds.clear();
+    if (id) this.selectedElementIds.add(id);
+  }
+
+  isElementSelected(id) {
+    return this.selectedElementIds.has(id);
+  }
+
   // --- SELEÇÃO ---
-  selectElement(id) {
-    this.selectedElementId = id;
+  selectElement(id, toggle = false) {
     this.selectedConnectionId = null;
+    if (toggle) {
+      if (this.selectedElementIds.has(id)) {
+        this.selectedElementIds.delete(id);
+      } else {
+        this.selectedElementIds.add(id);
+      }
+    } else {
+      this.selectedElementIds.clear();
+      if (id) this.selectedElementIds.add(id);
+    }
     this.render();
-    if (this.onSelectElement) this.onSelectElement(id, 'element');
+    if (this.onSelectElement) this.onSelectElement(this.selectedElementId, 'element', this.selectedElementIds);
+  }
+
+  selectMultipleElements(ids, append = false) {
+    this.selectedConnectionId = null;
+    if (!append) {
+      this.selectedElementIds.clear();
+    }
+    if (Array.isArray(ids)) {
+      ids.forEach(id => {
+        if (id) this.selectedElementIds.add(id);
+      });
+    }
+    this.render();
+    if (this.onSelectElement) this.onSelectElement(this.selectedElementId, 'element', this.selectedElementIds);
+  }
+
+  getSelectedElements() {
+    const list = [];
+    this.selectedElementIds.forEach(id => {
+      const elem = this.model.getElementById(id);
+      if (elem) list.push(elem);
+    });
+    return list;
   }
 
   selectConnection(id) {
     this.selectedConnectionId = id;
-    this.selectedElementId = null;
+    this.selectedElementIds.clear();
     this.render();
-    if (this.onSelectElement) this.onSelectElement(id, 'connection');
+    if (this.onSelectElement) this.onSelectElement(id, 'connection', this.selectedElementIds);
   }
 
   clearSelection() {
-    this.selectedElementId = null;
+    this.selectedElementIds.clear();
     this.selectedConnectionId = null;
     this.render();
-    if (this.onSelectElement) this.onSelectElement(null, null);
+    if (this.onSelectElement) this.onSelectElement(null, null, this.selectedElementIds);
   }
 
   // --- RENDERIZAÇÃO GERAL ---
@@ -147,14 +196,15 @@ class CanvasRenderer {
     // 1. Entidades (Retângulos simples ou duplos)
     this.model.entities.forEach(entity => {
       const g = this.createGroup(entity.id, 'entity');
-      const isSelected = this.selectedElementId === entity.id;
+      const isSelected = this.isElementSelected(entity.id);
 
+      const rectClass = `entity-rect ${entity.isWeak ? 'weak-entity' : ''}`;
       const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
       rect.setAttribute('x', entity.x - entity.width / 2);
       rect.setAttribute('y', entity.y - entity.height / 2);
       rect.setAttribute('width', entity.width);
       rect.setAttribute('height', entity.height);
-      rect.setAttribute('class', 'entity-rect');
+      rect.setAttribute('class', rectClass);
 
       g.appendChild(rect);
 
@@ -165,14 +215,15 @@ class CanvasRenderer {
         innerRect.setAttribute('y', entity.y - entity.height / 2 + 4);
         innerRect.setAttribute('width', Math.max(10, entity.width - 8));
         innerRect.setAttribute('height', Math.max(10, entity.height - 8));
-        innerRect.setAttribute('class', 'entity-rect inner');
+        innerRect.setAttribute('class', 'entity-rect inner weak-entity');
         g.appendChild(innerRect);
       }
 
+      const textClass = `element-text entity-text ${entity.isWeak ? 'weak-entity' : ''}`;
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       text.setAttribute('x', entity.x);
       text.setAttribute('y', entity.y);
-      text.setAttribute('class', 'element-text entity-text');
+      text.setAttribute('class', textClass);
       text.textContent = entity.name;
       g.appendChild(text);
 
@@ -183,9 +234,13 @@ class CanvasRenderer {
     // 2. Atributos (Elipses simples, duplas ou tracejadas)
     this.model.attributes.forEach(attr => {
       const g = this.createGroup(attr.id, 'attribute');
-      const isSelected = this.selectedElementId === attr.id;
+      const isSelected = this.isElementSelected(attr.id);
 
-      const ellipseClass = `attribute-ellipse ${attr.isDerived ? 'derived' : ''}`;
+      let ellipseClass = `attribute-ellipse ${attr.isDerived ? 'derived' : ''}`;
+      if (attr.isMultivalued) ellipseClass += ' multivalued';
+      if (attr.isKey) ellipseClass += ' key-attribute';
+      if (attr.isPartialKey) ellipseClass += ' key-partial-attribute';
+
       const ellipse = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
       ellipse.setAttribute('cx', attr.x);
       ellipse.setAttribute('cy', attr.y);
@@ -201,7 +256,7 @@ class CanvasRenderer {
         innerEllipse.setAttribute('cy', attr.y);
         innerEllipse.setAttribute('rx', Math.max(5, attr.width / 2 - 4));
         innerEllipse.setAttribute('ry', Math.max(5, attr.height / 2 - 4));
-        innerEllipse.setAttribute('class', 'attribute-ellipse inner');
+        innerEllipse.setAttribute('class', 'attribute-ellipse inner multivalued');
         g.appendChild(innerEllipse);
       }
 
@@ -224,7 +279,7 @@ class CanvasRenderer {
     // 3. Relacionamentos (Losangos simples ou duplos)
     this.model.relationships.forEach(rel => {
       const g = this.createGroup(rel.id, 'relationship');
-      const isSelected = this.selectedElementId === rel.id;
+      const isSelected = this.isElementSelected(rel.id);
 
       const halfW = rel.width / 2;
       const halfH = rel.height / 2;
@@ -232,9 +287,10 @@ class CanvasRenderer {
       // 4 pontos do losango: topo, direita, baixo, esquerda
       const points = `${rel.x},${rel.y - halfH} ${rel.x + halfW},${rel.y} ${rel.x},${rel.y + halfH} ${rel.x - halfW},${rel.y}`;
 
+      const polyClass = `relationship-polygon ${rel.isWeak ? 'weak-relationship' : ''}`;
       const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
       polygon.setAttribute('points', points);
-      polygon.setAttribute('class', 'relationship-polygon');
+      polygon.setAttribute('class', polyClass);
       g.appendChild(polygon);
 
       // Relacionamento Fraco / Identificador: Borda Dupla (Losango Interno)
@@ -245,14 +301,15 @@ class CanvasRenderer {
 
         const innerPoly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
         innerPoly.setAttribute('points', innerPoints);
-        innerPoly.setAttribute('class', 'relationship-polygon inner');
+        innerPoly.setAttribute('class', 'relationship-polygon inner weak-relationship');
         g.appendChild(innerPoly);
       }
 
+      const relTextClass = `element-text relationship-text ${rel.isWeak ? 'weak-relationship' : ''}`;
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       text.setAttribute('x', rel.x);
       text.setAttribute('y', rel.y);
-      text.setAttribute('class', 'element-text relationship-text');
+      text.setAttribute('class', relTextClass);
       text.textContent = rel.name;
       g.appendChild(text);
 
@@ -264,7 +321,7 @@ class CanvasRenderer {
     if (this.model.specializations) {
       this.model.specializations.forEach(spec => {
         const g = this.createGroup(spec.id, 'specialization');
-        const isSelected = this.selectedElementId === spec.id;
+        const isSelected = this.isElementSelected(spec.id);
 
         const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
         circle.setAttribute('cx', spec.x);
@@ -360,14 +417,23 @@ class CanvasRenderer {
 
         const isSelected = this.selectedConnectionId === conn.id;
 
-        // Calcular face de entrada e saída
+        // Calcular face de entrada e saída (especial para auto-relacionamentos estilo EMPREGADO supervisão)
         const lockSource = (conn.faceSource && conn.faceSource !== 'auto') ? conn.faceSource : null;
         const lockTarget = (conn.faceTarget && conn.faceTarget !== 'auto') ? conn.faceTarget : null;
 
         const dx = target.x - source.x;
         const dy = target.y - source.y;
-        const fSource = lockSource || ((Math.abs(dx) >= Math.abs(dy)) ? (dx >= 0 ? 'east' : 'west') : (dy >= 0 ? 'south' : 'north'));
-        const fTarget = lockTarget || ((Math.abs(dx) >= Math.abs(dy)) ? (dx >= 0 ? 'west' : 'east') : (dy >= 0 ? 'north' : 'south'));
+
+        let fSource, fTarget;
+        if (count > 1) {
+          // No auto-relacionamento recursivo acadêmico (ex.: Empregado / Supervisão ou Área / Integra):
+          // Cabo 1 sai pelo Topo (Norte) e Cabo 2 sai pela Base (Sul)
+          fSource = lockSource || (index === 0 ? 'north' : 'south');
+          fTarget = lockTarget || (index === 0 ? 'north' : 'south');
+        } else {
+          fSource = lockSource || ((Math.abs(dx) >= Math.abs(dy)) ? (dx >= 0 ? 'east' : 'west') : (dy >= 0 ? 'south' : 'north'));
+          fTarget = lockTarget || ((Math.abs(dx) >= Math.abs(dy)) ? (dx >= 0 ? 'west' : 'east') : (dy >= 0 ? 'north' : 'south'));
+        }
 
         // Obter offset de porta para esta face
         const sConns = elementFaceConns.get(`${source.id}___${fSource}`) || [];
@@ -395,7 +461,7 @@ class CanvasRenderer {
         const hasTotalTarget = conn.isTotalTarget !== undefined ? Boolean(conn.isTotalTarget) : hasTotalLegacy;
         const lineClass = `connection-line ${hasTotalLegacy ? 'total' : ''} ${isSelected ? 'selected' : ''}`;
 
-        // SEGUNDO A REGRA: Roteamento de Fios de Alta Precisão com Algoritmo A* Baseado em Custos (Logisim / EDA Router)
+        // SEGUNDO A REGRA: Roteamento Inteligente (Auto-Relacionamento Recursivo em Barramento Limpo ou A*)
         const isAttrConn = source.type === 'attribute' || target.type === 'attribute';
         let pathPoints = [];
 
@@ -403,8 +469,13 @@ class CanvasRenderer {
           if (!this.orthogonalRouter) {
             this.orthogonalRouter = new OrthogonalRouter(this.model, 20);
           }
-          // Rodar A* com matriz de custos de travessia e penalidade de curvas/sobreposição
-          pathPoints = this.orthogonalRouter.findPath(startPt, endPt, conn.id);
+
+          // Se for conexões múltiplas do mesmo par (ex: auto-relacionamento recursivo)
+          if (count > 1) {
+            pathPoints = this.orthogonalRouter.findParallelPath(startPt, endPt, index, count);
+          } else {
+            pathPoints = this.orthogonalRouter.findPath(startPt, endPt, conn.id);
+          }
         } else {
           // Apenas Atributos (Elipses) usam reta direta
           pathPoints = [startPt, endPt];
@@ -424,20 +495,26 @@ class CanvasRenderer {
         hitPath.style.cursor = 'pointer';
         this.connectionsLayer.appendChild(hitPath);
 
-        // Caminho visual principal
-        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        path.setAttribute('d', d);
-        path.setAttribute('fill', 'none');
-        path.setAttribute('class', lineClass);
-        path.setAttribute('data-conn-id', conn.id);
-        path.style.cursor = 'pointer';
-
-        this.connectionsLayer.appendChild(path);
-
-        // Participação total por lado: linha paralela duplicada que ACOMPANHA exatamente a forma da linha
-        const isTotal = hasTotalSource || hasTotalTarget || hasTotalLegacy;
+        const isTotal = Boolean(conn.isTotalSource || conn.isTotalTarget || conn.isTotal);
+        console.log(`[CanvasRenderer] Desenhando conexão ${conn.id}: isTotal = ${isTotal}`);
+        
         if (isTotal) {
-          this.renderParallelPath(pathPoints, 5, isSelected, conn.id);
+          console.log(`[CanvasRenderer] -> Renderizando Linha Dupla (Masking) para ${conn.id}`);
+          // Refazendo do ZERO: Se for obrigatório, desenha 2 linhas paralelas perfeitas
+          this.renderTrueDoubleLine(pathPoints, 5, isSelected, conn.id);
+          
+          // Mantém a área de hit original invisível
+          this.connectionsLayer.appendChild(hitPath);
+        } else {
+          // Caminho visual principal simples
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d', d);
+          path.setAttribute('fill', 'none');
+          path.setAttribute('class', lineClass);
+          path.setAttribute('data-conn-id', conn.id);
+          path.style.cursor = 'pointer';
+          this.connectionsLayer.appendChild(path);
+          this.connectionsLayer.appendChild(hitPath);
         }
 
         // Renderizar cardinalidade individual perto do losango do relacionamento (máxima cardinalidade da ponta)
@@ -479,86 +556,76 @@ class CanvasRenderer {
     });
   }
 
-  // --- DESENHAR CAMINHO PARALELO OBRIGATÓRIO PERFEITO (MITER JOIN 90°) ---
-  renderParallelPath(points, offsetDistance, isSelected, connId) {
-    if (!points || points.length < 2) return;
+  // --- CÁLCULO MATEMÁTICO DE CAMINHOS PARALELOS (SEM MÁSCARA) ---
+  computeParallelPaths(points, offset = 2.5) {
+    if (!points || points.length < 2) return { d1: '', d2: '' };
 
-    // Se for apenas um segmento reto (2 pontos)
-    if (points.length === 2) {
-      const p1 = points[0];
-      const p2 = points[1];
-      const dx = p2.x - p1.x;
-      const dy = p2.y - p1.y;
-      const len = Math.hypot(dx, dy) || 1;
-      const nx = -dy / len;
-      const ny = dx / len;
-
-      const d = `M ${p1.x + nx * offsetDistance} ${p1.y + ny * offsetDistance} L ${p2.x + nx * offsetDistance} ${p2.y + ny * offsetDistance}`;
-      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      path.setAttribute('d', d);
-      path.setAttribute('fill', 'none');
-      path.setAttribute('class', `connection-line total-side ${isSelected ? 'selected' : ''}`);
-      path.setAttribute('data-conn-id', connId);
-      this.connectionsLayer.appendChild(path);
-      return;
-    }
-
-    // Para caminhos com 90° (3 ou 4 pontos), calcular normais dos segmentos
-    const parallelPoints = [];
-    const segments = [];
-
+    // Vetores normais para cada segmento
+    const normals = [];
     for (let i = 0; i < points.length - 1; i++) {
-      const p1 = points[i];
-      const p2 = points[i + 1];
-      const dx = p2.x - p1.x;
-      const dy = p2.y - p1.y;
-      const len = Math.hypot(dx, dy) || 1;
-      segments.push({
-        p1, p2,
-        nx: -dy / len,
-        ny: dx / len
+      const dx = points[i + 1].x - points[i].x;
+      const dy = points[i + 1].y - points[i].y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      normals.push({ nx: -dy / len, ny: dx / len });
+    }
+
+    const pts1 = [];
+    const pts2 = [];
+
+    for (let i = 0; i < points.length; i++) {
+      let nx, ny;
+      if (i === 0) {
+        nx = normals[0].nx;
+        ny = normals[0].ny;
+      } else if (i === points.length - 1) {
+        nx = normals[normals.length - 1].nx;
+        ny = normals[normals.length - 1].ny;
+      } else {
+        // Miter join exato para quinas de 90° e ângulos diversos
+        nx = normals[i - 1].nx + normals[i].nx;
+        ny = normals[i - 1].ny + normals[i].ny;
+      }
+
+      pts1.push({
+        x: points[i].x + nx * offset,
+        y: points[i].y + ny * offset
+      });
+
+      pts2.push({
+        x: points[i].x - nx * offset,
+        y: points[i].y - ny * offset
       });
     }
 
-    // Primeiro ponto (offset normal do 1º segmento)
-    parallelPoints.push({
-      x: points[0].x + segments[0].nx * offsetDistance,
-      y: points[0].y + segments[0].ny * offsetDistance
-    });
+    const d1 = pts1.map((pt, i) => (i === 0 ? `M ${pt.x} ${pt.y}` : `L ${pt.x} ${pt.y}`)).join(' ');
+    const d2 = pts2.map((pt, i) => (i === 0 ? `M ${pt.x} ${pt.y}` : `L ${pt.x} ${pt.y}`)).join(' ');
 
-    // Pontos intermediários de curva 90° (Miter Join Offset)
-    for (let i = 0; i < segments.length - 1; i++) {
-      const s1 = segments[i];
-      const s2 = segments[i + 1];
-      const corner = points[i + 1];
+    return { d1, d2 };
+  }
 
-      // Miter vector (soma das normais dos dois segmentos adjacentes)
-      const mx = s1.nx + s2.nx;
-      const my = s1.ny + s2.ny;
+  // --- DESENHAR LINHA DUPLA VERDADEIRA (DUAS LINHAS PARALELAS SVG INDEPENDENTES) ---
+  renderTrueDoubleLine(pathPoints, gapDistance, isSelected, connId) {
+    if (!pathPoints || pathPoints.length < 2) return;
 
-      // Interseção exata no canto de 90°
-      parallelPoints.push({
-        x: corner.x + (mx > 0 ? offsetDistance : (mx < 0 ? -offsetDistance : 0)),
-        y: corner.y + (my > 0 ? offsetDistance : (my < 0 ? -offsetDistance : 0))
-      });
-    }
+    const { d1, d2 } = this.computeParallelPaths(pathPoints, 2.5);
+    const lineClass = `connection-line total ${isSelected ? 'selected' : ''}`;
 
-    // Último ponto (offset normal do último segmento)
-    const lastSeg = segments[segments.length - 1];
-    const lastPt = points[points.length - 1];
-    parallelPoints.push({
-      x: lastPt.x + lastSeg.nx * offsetDistance,
-      y: lastPt.y + lastSeg.ny * offsetDistance
-    });
+    const path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path1.setAttribute('d', d1);
+    path1.setAttribute('fill', 'none');
+    path1.setAttribute('class', lineClass);
+    path1.setAttribute('data-conn-id', connId);
+    path1.style.cursor = 'pointer';
 
-    const d = parallelPoints.map((pt, i) => (i === 0 ? `M ${pt.x} ${pt.y}` : `L ${pt.x} ${pt.y}`)).join(' ');
+    const path2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path2.setAttribute('d', d2);
+    path2.setAttribute('fill', 'none');
+    path2.setAttribute('class', lineClass);
+    path2.setAttribute('data-conn-id', connId);
+    path2.style.cursor = 'pointer';
 
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', d);
-    path.setAttribute('fill', 'none');
-    path.setAttribute('class', `connection-line total-side ${isSelected ? 'selected' : ''}`);
-    path.setAttribute('data-conn-id', connId);
-    this.connectionsLayer.appendChild(path);
+    this.connectionsLayer.appendChild(path1);
+    this.connectionsLayer.appendChild(path2);
   }
 
   renderCardinalityBadgeAt(label, x, y) {
@@ -607,10 +674,28 @@ class CanvasRenderer {
     const spacing = 18; // 18px entre cada cabo
     const portOffset = (totalPorts > 1) ? (portIndex - (totalPorts - 1) / 2) * spacing : 0;
 
-    // 1. Entidades (Retângulo): Ancoragem nas 4 arestas (Norte, Sul, Leste, Oeste) com offset de porta
+    // 1. Entidades (Retângulo):
     if (elem.type === 'entity') {
       const w = elem.width / 2;
       const h = elem.height / 2;
+
+      // Se for conexão com Atributo (Elipse), permite sair naturalmente em qualquer ponto/borda da Entidade (diagonal)
+      if (target.type === 'attribute') {
+        const absDx = Math.abs(dx);
+        const absDy = Math.abs(dy);
+
+        if (absDx * h >= absDy * w) {
+          // Interseca a borda Leste ou Oeste na altura y correspondente
+          const edgeX = elem.x + Math.sign(dx) * w;
+          const edgeY = elem.y + (dy * w) / (absDx || 1);
+          return { x: edgeX, y: edgeY };
+        } else {
+          // Interseca a borda Norte ou Sul na largura x correspondente
+          const edgeY = elem.y + Math.sign(dy) * h;
+          const edgeX = elem.x + (dx * h) / (absDy || 1);
+          return { x: edgeX, y: edgeY };
+        }
+      }
 
       let face = preferredFace;
       if (!face) {

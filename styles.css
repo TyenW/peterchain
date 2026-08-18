@@ -752,11 +752,13 @@ a {
 }
 
 .connection-line.total {
-  stroke-width: 4;
+  /* Mantém a espessura original para formar par perfeito com a linha paralela */
+  stroke-width: 2; 
   stroke-dasharray: none;
 }
 
 .connection-line.total-side {
+  stroke: var(--text);
   stroke-width: 2;
   stroke-dasharray: none;
 }

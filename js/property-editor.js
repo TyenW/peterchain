@@ -23,10 +23,12 @@ class PropertyEditor {
   }
 
   init() {
-    this.renderer.onSelectElement = (id, type) => {
-      if (!id) {
+    this.renderer.onSelectElement = (id, type, selectedSet) => {
+      if (!id && (!selectedSet || selectedSet.size === 0)) {
         this.hide();
-      } else {
+      } else if (selectedSet && selectedSet.size > 1) {
+        this.showMultiSelection(selectedSet.size);
+      } else if (id) {
         this.show(id, type);
       }
     };
@@ -37,6 +39,7 @@ class PropertyEditor {
   show(id, selectionType) {
     this.bodyEl.innerHTML = '';
     this.panel.classList.remove('hidden');
+    if (this.titleEl) this.titleEl.textContent = 'Propriedades do Elemento';
 
     if (selectionType === 'element') {
       const elem = this.model.getElementById(id);
@@ -49,6 +52,41 @@ class PropertyEditor {
     } else if (selectionType === 'connection') {
       const conn = this.model.connections.find(c => c.id === id);
       if (conn) this.renderConnectionEditor(conn);
+    }
+  }
+
+  showMultiSelection(count) {
+    this.bodyEl.innerHTML = '';
+    this.panel.classList.remove('hidden');
+    if (this.titleEl) this.titleEl.textContent = 'Seleção Múltipla';
+
+    const div = document.createElement('div');
+    div.style.padding = '12px 16px';
+    div.style.fontSize = '13px';
+    div.style.color = '#334155';
+    div.innerHTML = `
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+        <span style="background:#0284c7; color:#ffffff; font-weight:bold; font-size:12px; padding:2px 8px; border-radius:12px;">${count}</span>
+        <strong style="color:#0f172a;">Elementos Selecionados</strong>
+      </div>
+      <p style="margin-bottom:8px; line-height:1.4;">Você pode arrastar qualquer um dos elementos selecionados para mover o grupo inteiro pelo canvas mantendo o alinhamento relativo.</p>
+      <p style="margin-bottom:14px; line-height:1.4;">Pressione a tecla <kbd style="background:#e2e8f0; color:#334155; padding:2px 6px; border-radius:4px; font-family:monospace;">Delete</kbd> ou clique no botão abaixo para excluir todos.</p>
+      <button id="btn-delete-multi" class="btn btn-danger btn-block" style="width:100%; display:flex; align-items:center; justify-content:center; gap:6px; padding:8px 12px; font-weight:600;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+        Excluir ${count} Elementos
+      </button>
+    `;
+    this.bodyEl.appendChild(div);
+
+    const deleteBtn = div.querySelector('#btn-delete-multi');
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', () => {
+        if (this.renderer.selectedElementIds && this.renderer.selectedElementIds.size > 0) {
+          const idsToRemove = Array.from(this.renderer.selectedElementIds);
+          idsToRemove.forEach(id => this.model.removeElement(id));
+          this.renderer.clearSelection();
+        }
+      });
     }
   }
 

@@ -180,13 +180,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('export-png').addEventListener('click', () => {
     const title = projectTitleInput.value.trim().toLowerCase().replace(/\s+/g, '_');
-    storageManager.exportPNG(`${title}_der.png`);
+    storageManager.exportPNG(`${title}_der_pb.png`, { isColored: false, addLegend: false });
   });
+
+  const exportPngColorBtn = document.getElementById('export-png-color');
+  if (exportPngColorBtn) {
+    exportPngColorBtn.addEventListener('click', () => {
+      const title = projectTitleInput.value.trim().toLowerCase().replace(/\s+/g, '_');
+      storageManager.exportPNG(`${title}_der_colorido.png`, { isColored: true, addLegend: true });
+    });
+  }
 
   document.getElementById('export-svg').addEventListener('click', () => {
     const title = projectTitleInput.value.trim().toLowerCase().replace(/\s+/g, '_');
-    storageManager.exportSVG(`${title}_der.svg`);
+    storageManager.exportSVG(`${title}_der_pb.svg`, { isColored: false, addLegend: false });
   });
+
+  const exportSvgColorBtn = document.getElementById('export-svg-color');
+  if (exportSvgColorBtn) {
+    exportSvgColorBtn.addEventListener('click', () => {
+      const title = projectTitleInput.value.trim().toLowerCase().replace(/\s+/g, '_');
+      storageManager.exportSVG(`${title}_der_colorido.svg`, { isColored: true, addLegend: true });
+    });
+  }
 
   document.getElementById('export-json').addEventListener('click', () => {
     const title = projectTitleInput.value.trim().toLowerCase().replace(/\s+/g, '_');

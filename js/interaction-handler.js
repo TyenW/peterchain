@@ -13,9 +13,14 @@ class InteractionHandler {
 
     // Estados de Drag & Drop
     this.isDraggingElement = false;
-    this.draggedElement = null;
+    this.draggedElements = [];
     this.dragStartPos = { x: 0, y: 0 };
-    this.elementStartPos = { x: 0, y: 0 };
+
+    // Estados de Seleção por Caixa (Marquee Selection)
+    this.isBoxSelecting = false;
+    this.boxSelectStartPos = { x: 0, y: 0 };
+    this.boxSelectInitialSelection = new Set();
+    this.selectionBoxRect = null;
 
     // Estados de Pan do Canvas
     this.isPanningCanvas = false;
@@ -63,6 +68,31 @@ class InteractionHandler {
     window.addEventListener('keyup', (e) => this.handleKeyUp(e));
   }
 
+  createSelectionBoxOverlay() {
+    this.removeSelectionBoxOverlay();
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('id', 'selection-marquee-box');
+    rect.setAttribute('fill', 'rgba(2, 132, 199, 0.12)');
+    rect.setAttribute('stroke', '#0284c7');
+    rect.setAttribute('stroke-width', '1.5');
+    rect.setAttribute('stroke-dasharray', '4 3');
+    rect.setAttribute('rx', '2');
+    rect.setAttribute('pointer-events', 'none');
+    
+    const layer = this.renderer.tempLayer || this.renderer.svg;
+    layer.appendChild(rect);
+    this.selectionBoxRect = rect;
+  }
+
+  removeSelectionBoxOverlay() {
+    if (this.selectionBoxRect) {
+      this.selectionBoxRect.remove();
+      this.selectionBoxRect = null;
+    }
+    const oldBox = document.getElementById('selection-marquee-box');
+    if (oldBox) oldBox.remove();
+  }
+
   handleMouseDown(e) {
     // Se o usuário clicar com o botão do meio ou estiver pressionando Espaço, inicia Pan do canvas
     if (e.button === 1 || this.spacePressed) {
@@ -81,15 +111,26 @@ class InteractionHandler {
 
     // --- FERRAMENTA SELECIONAR ---
     if (this.activeTool === 'select') {
+      const isToggle = e.shiftKey || e.ctrlKey || e.metaKey;
+
       if (targetElementG) {
         const id = targetElementG.getAttribute('data-id');
-        this.renderer.selectElement(id);
+        if (isToggle) {
+          this.renderer.selectElement(id, true);
+        } else {
+          if (!this.renderer.isElementSelected(id)) {
+            this.renderer.selectElement(id, false);
+          }
+        }
 
-        this.isDraggingElement = true;
-        this.draggedElement = this.model.getElementById(id);
-        if (this.draggedElement) {
+        const selectedElems = this.renderer.getSelectedElements();
+        if (selectedElems.length > 0) {
+          this.isDraggingElement = true;
+          this.draggedElements = selectedElems.map(el => ({
+            element: el,
+            startPos: { x: el.x, y: el.y }
+          }));
           this.dragStartPos = canvasCoords;
-          this.elementStartPos = { x: this.draggedElement.x, y: this.draggedElement.y };
         }
       } else if (targetConnLine) {
         const connId = targetConnLine.getAttribute('data-conn-id');
@@ -101,11 +142,17 @@ class InteractionHandler {
         this.dragStartPos = canvasCoords;
       } else {
         // Clicou no fundo do canvas
-        this.renderer.clearSelection();
-        this.isPanningCanvas = true;
-        this.panStartPos = { x: e.clientX, y: e.clientY };
-        this.container.classList.add('panning');
+        if (!isToggle) {
+          this.renderer.clearSelection();
+        }
+
+        // Iniciar seleção por caixa (Marquee)
+        this.isBoxSelecting = true;
+        this.boxSelectStartPos = canvasCoords;
+        this.boxSelectInitialSelection = new Set(this.renderer.selectedElementIds);
+        this.createSelectionBoxOverlay();
       }
+      e.preventDefault();
     }
 
     // --- FERRAMENTA ENTIDADE ---
@@ -217,45 +264,99 @@ class InteractionHandler {
   }
 
   handleMouseMove(e) {
-    if (this.isDraggingElement && this.draggedElement) {
+    if (this.isBoxSelecting && this.selectionBoxRect) {
+      const canvasCoords = this.renderer.screenToCanvasCoordinates(e.clientX, e.clientY);
+      const x = Math.min(this.boxSelectStartPos.x, canvasCoords.x);
+      const y = Math.min(this.boxSelectStartPos.y, canvasCoords.y);
+      const width = Math.abs(canvasCoords.x - this.boxSelectStartPos.x);
+      const height = Math.abs(canvasCoords.y - this.boxSelectStartPos.y);
+
+      this.selectionBoxRect.setAttribute('x', x);
+      this.selectionBoxRect.setAttribute('y', y);
+      this.selectionBoxRect.setAttribute('width', width);
+      this.selectionBoxRect.setAttribute('height', height);
+
+      if (width > 3 || height > 3) {
+        const intersectedIds = [];
+        const allElements = this.model.getAllElements();
+
+        allElements.forEach(el => {
+          let elW = el.width || 90;
+          let elH = el.height || 50;
+          if (el.type === 'specialization') {
+            elW = 36;
+            elH = 36;
+          }
+
+          const elMinX = el.x - elW / 2;
+          const elMaxX = el.x + elW / 2;
+          const elMinY = el.y - elH / 2;
+          const elMaxY = el.y + elH / 2;
+
+          const boxMinX = x;
+          const boxMaxX = x + width;
+          const boxMinY = y;
+          const boxMaxY = y + height;
+
+          const intersects = (elMinX <= boxMaxX && elMaxX >= boxMinX && elMinY <= boxMaxY && elMaxY >= boxMinY);
+          if (intersects) {
+            intersectedIds.push(el.id);
+          }
+        });
+
+        const isAppend = e.shiftKey || e.ctrlKey || e.metaKey;
+        if (isAppend) {
+          const combined = new Set(this.boxSelectInitialSelection);
+          intersectedIds.forEach(id => combined.add(id));
+          this.renderer.selectMultipleElements(Array.from(combined));
+        } else {
+          this.renderer.selectMultipleElements(intersectedIds);
+        }
+      }
+      return;
+    }
+
+    if (this.isDraggingElement && this.draggedElements && this.draggedElements.length > 0) {
       const canvasCoords = this.renderer.screenToCanvasCoordinates(e.clientX, e.clientY);
       const dx = canvasCoords.x - this.dragStartPos.x;
       const dy = canvasCoords.y - this.dragStartPos.y;
 
-      let targetX = Math.round((this.elementStartPos.x + dx) / 10) * 10;
-      let targetY = Math.round((this.elementStartPos.y + dy) / 10) * 10;
+      const anchor = this.draggedElements[0];
+      let anchorTargetX = Math.round((anchor.startPos.x + dx) / 10) * 10;
+      let anchorTargetY = Math.round((anchor.startPos.y + dy) / 10) * 10;
 
-      // --- AUXÍLIO DE ALINHAMENTO MAGNÉTICO (SMART ALIGNMENT GUIDES) ---
-      const snapThreshold = 8;
-      const allOtherElements = this.model.getAllElements().filter(el => el.id !== this.draggedElement.id);
+      const selectedIds = new Set(this.draggedElements.map(item => item.element.id));
+      const allOtherElements = this.model.getAllElements().filter(el => !selectedIds.has(el.id));
       
+      const snapThreshold = 8;
       let alignedX = null;
       let alignedY = null;
 
       for (const other of allOtherElements) {
-        // Alinhamento no eixo X (mesma coluna / vertical)
-        if (Math.abs(targetX - other.x) < snapThreshold) {
-          targetX = other.x;
+        if (Math.abs(anchorTargetX - other.x) < snapThreshold) {
+          anchorTargetX = other.x;
           alignedX = other.x;
         }
-        // Alinhamento no eixo Y (mesma linha / horizontal)
-        if (Math.abs(targetY - other.y) < snapThreshold) {
-          targetY = other.y;
+        if (Math.abs(anchorTargetY - other.y) < snapThreshold) {
+          anchorTargetY = other.y;
           alignedY = other.y;
         }
       }
 
-      this.draggedElement.x = targetX;
-      this.draggedElement.y = targetY;
+      const finalDx = anchorTargetX - anchor.startPos.x;
+      const finalDy = anchorTargetY - anchor.startPos.y;
+
+      this.draggedElements.forEach(item => {
+        item.element.x = Math.round((item.startPos.x + finalDx) / 10) * 10;
+        item.element.y = Math.round((item.startPos.y + finalDy) / 10) * 10;
+      });
 
       this.renderer.render();
-
-      // Desenhar guias de alinhamento SVG dinâmicas
-      this.renderAlignmentGuides(alignedX, alignedY, this.draggedElement);
+      this.renderAlignmentGuides(alignedX, alignedY, anchor.element);
       return;
     }
 
-    // --- ARRASTO DIRETO DA LINHA DE CONEXÃO (MOVER SEGMENTOS 90° E RECALCULAR PORTA DE ENTRADA/SAÍDA) ---
+    // --- ARRASTO DIRETO DA LINHA DE CONEXÃO ---
     if (this.isDraggingConnection && this.draggedConnection) {
       const canvasCoords = this.renderer.screenToCanvasCoordinates(e.clientX, e.clientY);
       const sourceElem = this.model.getElementById(this.draggedConnection.sourceId);
@@ -265,24 +366,18 @@ class InteractionHandler {
         const isAttr = sourceElem.type === 'attribute' || targetElem.type === 'attribute';
 
         if (!isAttr) {
-          // Distância do clique em relação às pontas de origem e destino
           const distSource = Math.hypot(canvasCoords.x - sourceElem.x, canvasCoords.y - sourceElem.y);
           const distTarget = Math.hypot(canvasCoords.x - targetElem.x, canvasCoords.y - targetElem.y);
 
-          // Se estiver arrastando perto da origem (menos de 70px da origem), muda a porta de saída da origem
           if (distSource < 70) {
             const dx = canvasCoords.x - sourceElem.x;
             const dy = canvasCoords.y - sourceElem.y;
             this.draggedConnection.faceSource = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'east' : 'west') : (dy >= 0 ? 'south' : 'north');
-          }
-          // Se estiver arrastando perto do destino (menos de 70px do destino), muda a porta de entrada do destino
-          else if (distTarget < 70) {
+          } else if (distTarget < 70) {
             const dx = canvasCoords.x - targetElem.x;
             const dy = canvasCoords.y - targetElem.y;
             this.draggedConnection.faceTarget = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'east' : 'west') : (dy >= 0 ? 'south' : 'north');
-          }
-          // Se estiver arrastando a parte do meio (o segmento central), move a posição do segmento a 90°
-          else {
+          } else {
             const dxTotal = targetElem.x - sourceElem.x;
             const dyTotal = targetElem.y - sourceElem.y;
 
@@ -350,6 +445,9 @@ class InteractionHandler {
 
   handleMouseUp(e) {
     this.removeAlignmentGuides();
+    this.removeSelectionBoxOverlay();
+
+    this.isBoxSelecting = false;
 
     if (this.isDraggingConnection && this.draggedConnection) {
       this.model.notify();
@@ -357,15 +455,22 @@ class InteractionHandler {
 
     this.isDraggingConnection = false;
     this.draggedConnection = null;
-    // Se um elemento foi arrastado e mudou de posição, notificar o modelo UMA ÚNICA VEZ para gravar snapshot de Undo
-    if (this.isDraggingElement && this.draggedElement) {
-      if (this.draggedElement.x !== this.elementStartPos.x || this.draggedElement.y !== this.elementStartPos.y) {
+
+    if (this.isDraggingElement && this.draggedElements && this.draggedElements.length > 0) {
+      let moved = false;
+      for (const item of this.draggedElements) {
+        if (item.element.x !== item.startPos.x || item.element.y !== item.startPos.y) {
+          moved = true;
+          break;
+        }
+      }
+      if (moved) {
         this.model.notify();
       }
     }
 
     this.isDraggingElement = false;
-    this.draggedElement = null;
+    this.draggedElements = [];
 
     if (this.isPanningCanvas) {
       this.isPanningCanvas = false;
@@ -422,8 +527,9 @@ class InteractionHandler {
       this.spacePressed = true;
       this.container.style.cursor = 'grab';
     } else if (e.key === 'Delete' || e.key === 'Backspace') {
-      if (this.renderer.selectedElementId) {
-        this.model.removeElement(this.renderer.selectedElementId);
+      if (this.renderer.selectedElementIds && this.renderer.selectedElementIds.size > 0) {
+        const idsToRemove = Array.from(this.renderer.selectedElementIds);
+        idsToRemove.forEach(id => this.model.removeElement(id));
         this.renderer.clearSelection();
       } else if (this.renderer.selectedConnectionId) {
         this.model.removeConnection(this.renderer.selectedConnectionId);

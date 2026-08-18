@@ -229,6 +229,8 @@ class DiagramModel {
       faceTarget: opts.faceTarget || 'auto'
     };
 
+    console.log(`[DiagramModel] Criada conexão ${sourceId} -> ${targetId} | isTotal: ${conn.isTotal} (Source: ${conn.isTotalSource}, Target: ${conn.isTotalTarget})`);
+
     this.connections.push(conn);
     this.notify();
     return conn;

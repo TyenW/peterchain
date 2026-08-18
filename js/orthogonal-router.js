@@ -153,6 +153,62 @@ class OrthogonalRouter {
     return this.buildFallbackManhattan(startPt, endPt);
   }
 
+  // --- ROTEAMENTO EM FAIXAS PARALELAS (SEM CRUZAMENTO) PARA MÚLTIPLAS CONEXÕES ENTRE O MESMO PAR ---
+  // Usado quando há mais de uma conexão entre os mesmos dois elementos (ex.: auto-relacionamento
+  // com papéis, como `integra (Area [integrante] N:1 Area [integrada])`). Em vez de rodar o A*
+  // de forma independente para cada fio (o que pode fazê-los se cruzar no meio do caminho), cada
+  // fio recebe uma "faixa" (lane) de saída dedicada, garantindo que a ordem relativa entre eles
+  // seja preservada do início ao fim — exatamente como no roteamento de barramentos de EDA.
+  findParallelPath(startPt, endPt, laneIndex = 0, laneCount = 1) {
+    const stubLen = 24;
+    const sStub = { ...startPt };
+    const eStub = { ...endPt };
+
+    if (startPt.face === 'east') sStub.x += stubLen;
+    else if (startPt.face === 'west') sStub.x -= stubLen;
+    else if (startPt.face === 'north') sStub.y -= stubLen;
+    else if (startPt.face === 'south') sStub.y += stubLen;
+
+    if (endPt.face === 'east') eStub.x += stubLen;
+    else if (endPt.face === 'west') eStub.x -= stubLen;
+    else if (endPt.face === 'north') eStub.y -= stubLen;
+    else if (endPt.face === 'south') eStub.y += stubLen;
+
+    const laneGap = 22;
+    const laneOffset = (laneIndex - (laneCount - 1) / 2) * laneGap;
+
+    const startsHorizontal = (startPt.face === 'east' || startPt.face === 'west');
+    const endsHorizontal = (endPt.face === 'east' || endPt.face === 'west');
+
+    const pts = [startPt, sStub];
+
+    if (startsHorizontal && endsHorizontal) {
+      const turnX = (sStub.x + eStub.x) / 2 + laneOffset;
+      pts.push({ x: turnX, y: sStub.y });
+      pts.push({ x: turnX, y: eStub.y });
+    } else if (!startsHorizontal && !endsHorizontal) {
+      const turnY = (sStub.y + eStub.y) / 2 + laneOffset;
+      pts.push({ x: sStub.x, y: turnY });
+      pts.push({ x: eStub.x, y: turnY });
+    } else if (startsHorizontal) {
+      pts.push({ x: eStub.x, y: sStub.y });
+    } else {
+      pts.push({ x: sStub.x, y: eStub.y });
+    }
+
+    pts.push(eStub, endPt);
+
+    // Remove pontos duplicados/colineares consecutivos
+    const clean = [pts[0]];
+    for (let i = 1; i < pts.length; i++) {
+      const prev = clean[clean.length - 1];
+      const cur = pts[i];
+      if (Math.abs(prev.x - cur.x) < 0.01 && Math.abs(prev.y - cur.y) < 0.01) continue;
+      clean.push(cur);
+    }
+    return clean;
+  }
+
   // --- RECONSTRUÇÃO E PURIFICAÇÃO DO CAMINHO (100% RETO ORTOGONAL 90° SEM TOLERÂNCIA A DESVIOS) ---
   reconstructPath(cameFrom, currentKey, startPt, endPt) {
     const rawPath = [];
