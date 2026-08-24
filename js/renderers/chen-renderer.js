@@ -1,194 +1,9 @@
 /**
- * DER Builder — Renderizador SVG do Canvas Interativo (Notação Peter Chen)
+ * DER Builder — Renderizador SVG para Notação Peter Chen
  */
-class CanvasRenderer {
-  constructor(model, containerId = 'svg-container', svgId = 'der-canvas') {
-    this.model = model;
-    this.container = document.getElementById(containerId);
-    this.svg = document.getElementById(svgId);
-    this.viewportGroup = document.getElementById('viewport-group');
-    this.connectionsLayer = document.getElementById('connections-layer');
-    this.elementsLayer = document.getElementById('elements-layer');
-    this.labelsLayer = document.getElementById('labels-layer');
-    this.tempLayer = document.getElementById('temp-layer');
-
-    // Pan & Zoom
-    this.panX = 0;
-    this.panY = 0;
-    this.zoomScale = 1.0;
-    this.minZoom = 0.2;
-    this.maxZoom = 3.0;
-
-    // Estado da seleção
-    this.selectedElementIds = new Set();
-    this.selectedConnectionId = null;
-
-    // Callbacks
-    this.onSelectElement = null;
-
-    // Inicialização
-    this.initViewportTransform();
-    this.model.subscribe(() => this.render());
-  }
-
-  // --- PAN & ZOOM CONTROL ---
-  initViewportTransform() {
-    this.updateTransform();
-  }
-
-  setZoom(scale, centerX = null, centerY = null) {
-    const newScale = Math.min(this.maxZoom, Math.max(this.minZoom, scale));
-    if (centerX !== null && centerY !== null) {
-      // Zoom em direção ao cursor do mouse
-      const zoomRatio = newScale / this.zoomScale;
-      this.panX = centerX - (centerX - this.panX) * zoomRatio;
-      this.panY = centerY - (centerY - this.panY) * zoomRatio;
-    }
-    this.zoomScale = newScale;
-    this.updateTransform();
-
-    const zoomText = document.getElementById('zoom-level-text');
-    if (zoomText) zoomText.textContent = `${Math.round(this.zoomScale * 100)}%`;
-  }
-
-  setPan(dx, dy) {
-    this.panX += dx;
-    this.panY += dy;
-    this.updateTransform();
-  }
-
-  resetZoomAndPan() {
-    this.zoomScale = 1.0;
-    this.panX = 0;
-    this.panY = 0;
-    this.updateTransform();
-    const zoomText = document.getElementById('zoom-level-text');
-    if (zoomText) zoomText.textContent = `100%`;
-  }
-
-  zoomToFit() {
-    const bbox = this.viewportGroup.getBBox();
-    if (!bbox || bbox.width === 0 || bbox.height === 0) {
-      this.resetZoomAndPan();
-      return;
-    }
-    const containerRect = this.container.getBoundingClientRect();
-    const padding = 80;
-    const scaleX = (containerRect.width - padding) / bbox.width;
-    const scaleY = (containerRect.height - padding) / bbox.height;
-    const fitScale = Math.min(1.5, Math.max(0.3, Math.min(scaleX, scaleY)));
-
-    this.zoomScale = fitScale;
-    this.panX = Math.round((containerRect.width - bbox.width * fitScale) / 2 - bbox.x * fitScale);
-    this.panY = Math.round((containerRect.height - bbox.height * fitScale) / 2 - bbox.y * fitScale);
-    this.updateTransform();
-    const zoomText = document.getElementById('zoom-level-text');
-    if (zoomText) zoomText.textContent = `${Math.round(this.zoomScale * 100)}%`;
-  }
-
-  updateTransform() {
-    this.viewportGroup.setAttribute('transform', `translate(${this.panX}, ${this.panY}) scale(${this.zoomScale})`);
-  }
-
-  // Converter coordenadas de Tela (Mouse) para Coordenadas do Canvas SVG
-  screenToCanvasCoordinates(screenX, screenY) {
-    const rect = this.svg.getBoundingClientRect();
-    const x = (screenX - rect.left - this.panX) / this.zoomScale;
-    const y = (screenY - rect.top - this.panY) / this.zoomScale;
-    return { x, y };
-  }
-
-  // --- GETTER & SETTER RETROCOMPATÍVEL ---
-  get selectedElementId() {
-    if (this.selectedElementIds.size === 1) {
-      return Array.from(this.selectedElementIds)[0];
-    }
-    return null;
-  }
-
-  set selectedElementId(id) {
-    this.selectedElementIds.clear();
-    if (id) this.selectedElementIds.add(id);
-  }
-
-  isElementSelected(id) {
-    return this.selectedElementIds.has(id);
-  }
-
-  // --- SELEÇÃO ---
-  selectElement(id, toggle = false) {
-    this.selectedConnectionId = null;
-    if (toggle) {
-      if (this.selectedElementIds.has(id)) {
-        this.selectedElementIds.delete(id);
-      } else {
-        this.selectedElementIds.add(id);
-      }
-    } else {
-      this.selectedElementIds.clear();
-      if (id) this.selectedElementIds.add(id);
-    }
-    this.render();
-    if (this.onSelectElement) this.onSelectElement(this.selectedElementId, 'element', this.selectedElementIds);
-  }
-
-  selectMultipleElements(ids, append = false) {
-    this.selectedConnectionId = null;
-    if (!append) {
-      this.selectedElementIds.clear();
-    }
-    if (Array.isArray(ids)) {
-      ids.forEach(id => {
-        if (id) this.selectedElementIds.add(id);
-      });
-    }
-    this.render();
-    if (this.onSelectElement) this.onSelectElement(this.selectedElementId, 'element', this.selectedElementIds);
-  }
-
-  getSelectedElements() {
-    const list = [];
-    this.selectedElementIds.forEach(id => {
-      const elem = this.model.getElementById(id);
-      if (elem) list.push(elem);
-    });
-    return list;
-  }
-
-  selectConnection(id) {
-    this.selectedConnectionId = id;
-    this.selectedElementIds.clear();
-    this.render();
-    if (this.onSelectElement) this.onSelectElement(id, 'connection', this.selectedElementIds);
-  }
-
-  clearSelection() {
-    this.selectedElementIds.clear();
-    this.selectedConnectionId = null;
-    this.render();
-    if (this.onSelectElement) this.onSelectElement(null, null, this.selectedElementIds);
-  }
-
-  // --- RENDERIZAÇÃO GERAL ---
-  render() {
-    this.clearLayers();
-    this.renderConnections();
-    this.renderElements();
-    this.updateElementCountDisplay();
-  }
-
-  clearLayers() {
-    this.connectionsLayer.innerHTML = '';
-    this.elementsLayer.innerHTML = '';
-    this.labelsLayer.innerHTML = '';
-  }
-
-  updateElementCountDisplay() {
-    const countEl = document.getElementById('info-elements-count');
-    if (countEl) {
-      const total = this.model.entities.length + this.model.attributes.length + this.model.relationships.length;
-      countEl.textContent = `${total} elementos (${this.model.entities.length} E, ${this.model.attributes.length} A, ${this.model.relationships.length} R)`;
-    }
+class ChenRenderer extends window.RendererBase {
+  constructor(model, layers) {
+    super(model, layers);
   }
 
   // --- RENDERIZAR ELEMENTOS PETER CHEN ---
@@ -197,6 +12,9 @@ class CanvasRenderer {
     this.model.entities.forEach(entity => {
       const g = this.createGroup(entity.id, 'entity');
       const isSelected = this.isElementSelected(entity.id);
+      const isInvalid = this.model.invalidIds && this.model.invalidIds.has(entity.id);
+
+      if (isInvalid) g.classList.add('invalid');
 
       const rectClass = `entity-rect ${entity.isWeak ? 'weak-entity' : ''}`;
       const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
@@ -228,13 +46,17 @@ class CanvasRenderer {
       g.appendChild(text);
 
       if (isSelected) g.classList.add('selected');
-      this.elementsLayer.appendChild(g);
+      const elLayer = (this.layers && this.layers.elementsLayer) || document.getElementById('elements-layer');
+      if (elLayer) elLayer.appendChild(g);
     });
 
     // 2. Atributos (Elipses simples, duplas ou tracejadas)
     this.model.attributes.forEach(attr => {
       const g = this.createGroup(attr.id, 'attribute');
       const isSelected = this.isElementSelected(attr.id);
+      const isInvalid = this.model.invalidIds && this.model.invalidIds.has(attr.id);
+
+      if (isInvalid) g.classList.add('invalid');
 
       let ellipseClass = `attribute-ellipse ${attr.isDerived ? 'derived' : ''}`;
       if (attr.isMultivalued) ellipseClass += ' multivalued';
@@ -273,13 +95,17 @@ class CanvasRenderer {
       g.appendChild(text);
 
       if (isSelected) g.classList.add('selected');
-      this.elementsLayer.appendChild(g);
+      const elLayer = (this.layers && this.layers.elementsLayer) || document.getElementById('elements-layer');
+      if (elLayer) elLayer.appendChild(g);
     });
 
     // 3. Relacionamentos (Losangos simples ou duplos)
     this.model.relationships.forEach(rel => {
       const g = this.createGroup(rel.id, 'relationship');
       const isSelected = this.isElementSelected(rel.id);
+      const isInvalid = this.model.invalidIds && this.model.invalidIds.has(rel.id);
+
+      if (isInvalid) g.classList.add('invalid');
 
       const halfW = rel.width / 2;
       const halfH = rel.height / 2;
@@ -314,14 +140,18 @@ class CanvasRenderer {
       g.appendChild(text);
 
       if (isSelected) g.classList.add('selected');
-      this.elementsLayer.appendChild(g);
+      const elLayer = (this.layers && this.layers.elementsLayer) || document.getElementById('elements-layer');
+      if (elLayer) elLayer.appendChild(g);
     });
 
     // 4. Especializações EER (Círculo intermediário d, o, u)
     if (this.model.specializations) {
       this.model.specializations.forEach(spec => {
-        const g = this.createGroup(spec.id, 'specialization');
-        const isSelected = this.isElementSelected(spec.id);
+      const g = this.createGroup(spec.id, 'specialization');
+      const isSelected = this.isElementSelected(spec.id);
+      const isInvalid = this.model.invalidIds && this.model.invalidIds.has(spec.id);
+
+      if (isInvalid) g.classList.add('invalid');
 
         const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
         circle.setAttribute('cx', spec.x);
@@ -338,22 +168,19 @@ class CanvasRenderer {
         g.appendChild(text);
 
         if (isSelected) g.classList.add('selected');
-        this.elementsLayer.appendChild(g);
+        const elLayer = (this.layers && this.layers.elementsLayer) || document.getElementById('elements-layer');
+        if (elLayer) elLayer.appendChild(g);
       });
     }
   }
 
-  createGroup(id, type) {
-    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    g.setAttribute('class', `der-element der-${type}`);
-    g.setAttribute('data-id', id);
-    return g;
-  }
-
   // --- RENDERIZAR CONEXÕES (COM SUPORTE A LINHAS CURVAS PARALELAS SEM SOBREPOSIÇÃO) ---
   renderConnections() {
-    this.connectionsLayer.innerHTML = '';
-    this.labelsLayer.innerHTML = '';
+    const connLayer = (this.layers && this.layers.connectionsLayer) || document.getElementById('connections-layer');
+    const labelsLayer = (this.layers && this.layers.labelsLayer) || document.getElementById('labels-layer');
+    
+    if (connLayer) connLayer.innerHTML = '';
+    if (labelsLayer) labelsLayer.innerHTML = '';
 
     // Mapear quantas conexões cada relacionamento possui por entidade para detectar auto-relacionamentos
     const relEntityConnCount = new Map();
@@ -463,9 +290,11 @@ class CanvasRenderer {
 
         // SEGUNDO A REGRA: Roteamento Inteligente (Auto-Relacionamento Recursivo em Barramento Limpo ou A*)
         const isAttrConn = source.type === 'attribute' || target.type === 'attribute';
+        const isSpecConn = source.type === 'specialization' || target.type === 'specialization';
+        const isDirectConn = isAttrConn || isSpecConn;
         let pathPoints = [];
 
-        if (!isAttrConn) {
+        if (!isDirectConn) {
           if (!this.orthogonalRouter) {
             this.orthogonalRouter = new OrthogonalRouter(this.model, 20);
           }
@@ -477,7 +306,7 @@ class CanvasRenderer {
             pathPoints = this.orthogonalRouter.findPath(startPt, endPt, conn.id);
           }
         } else {
-          // Apenas Atributos (Elipses) usam reta direta
+          // Atributos (Elipses) e Especializações EER (Círculos d/o/u) usam reta direta limpa (sem degraus/cotovelos)
           pathPoints = [startPt, endPt];
         }
 
@@ -493,18 +322,18 @@ class CanvasRenderer {
         hitPath.setAttribute('class', 'connection-line connection-hitarea');
         hitPath.setAttribute('data-conn-id', conn.id);
         hitPath.style.cursor = 'pointer';
-        this.connectionsLayer.appendChild(hitPath);
+        const connLayer = (this.layers && this.layers.connectionsLayer) || document.getElementById('connections-layer');
+        if (connLayer) connLayer.appendChild(hitPath);
 
         const isTotal = Boolean(conn.isTotalSource || conn.isTotalTarget || conn.isTotal);
-        console.log(`[CanvasRenderer] Desenhando conexão ${conn.id}: isTotal = ${isTotal}`);
         
         if (isTotal) {
-          console.log(`[CanvasRenderer] -> Renderizando Linha Dupla (Masking) para ${conn.id}`);
           // Refazendo do ZERO: Se for obrigatório, desenha 2 linhas paralelas perfeitas
           this.renderTrueDoubleLine(pathPoints, 5, isSelected, conn.id);
           
           // Mantém a área de hit original invisível
-          this.connectionsLayer.appendChild(hitPath);
+          const connLayer = (this.layers && this.layers.connectionsLayer) || document.getElementById('connections-layer');
+          if (connLayer) connLayer.appendChild(hitPath);
         } else {
           // Caminho visual principal simples
           const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -513,8 +342,11 @@ class CanvasRenderer {
           path.setAttribute('class', lineClass);
           path.setAttribute('data-conn-id', conn.id);
           path.style.cursor = 'pointer';
-          this.connectionsLayer.appendChild(path);
-          this.connectionsLayer.appendChild(hitPath);
+          const connLayer = (this.layers && this.layers.connectionsLayer) || document.getElementById('connections-layer');
+          if (connLayer) {
+            connLayer.appendChild(path);
+            connLayer.appendChild(hitPath);
+          }
         }
 
         // Renderizar cardinalidade individual perto do losango do relacionamento (máxima cardinalidade da ponta)
@@ -551,6 +383,33 @@ class CanvasRenderer {
           const roleY = entPt.y + (segDy / segLen) * 35 - 12;
 
           this.renderRoleLabelAt(roleText, roleX, roleY);
+        }
+
+        // === EER: Símbolo ⊂ nas conexões círculo→subclasse ===
+        if (source.type === 'specialization' && target.type === 'entity') {
+          // Ponto médio da linha entre o círculo (startPt) e a subclasse (endPt)
+          const midX = (startPt.x + endPt.x) / 2;
+          const midY = (startPt.y + endPt.y) / 2;
+
+          // Ângulo vetor apontando do ponto médio DIRETO para o CÍRCULO (startPt)
+          const angleToCircleDeg = Math.atan2(startPt.y - midY, startPt.x - midX) * (180 / Math.PI);
+          this.renderSubsetSymbol(midX, midY, angleToCircleDeg);
+        }
+
+        // === EER: Rótulo do Atributo Definidor na linha superclasse→círculo ===
+        if (source.type === 'entity' && target.type === 'specialization') {
+          const spec = this.model.specializations.find(s => s.id === target.id);
+          if (spec && spec.definingAttribute) {
+            const midX = (startPt.x + endPt.x) / 2;
+            const midY = (startPt.y + endPt.y) / 2;
+            // Offset perpendicular à linha para não sobrepor
+            const dx = endPt.x - startPt.x;
+            const dy = endPt.y - startPt.y;
+            const len = Math.hypot(dx, dy) || 1;
+            const labelX = midX + (-dy / len) * 16;
+            const labelY = midY + (dx / len) * 16;
+            this.renderDefiningAttributeLabel(spec.definingAttribute, labelX, labelY);
+          }
         }
       });
     });
@@ -624,8 +483,11 @@ class CanvasRenderer {
     path2.setAttribute('data-conn-id', connId);
     path2.style.cursor = 'pointer';
 
-    this.connectionsLayer.appendChild(path1);
-    this.connectionsLayer.appendChild(path2);
+    const connLayer = (this.layers && this.layers.connectionsLayer) || document.getElementById('connections-layer');
+    if (connLayer) {
+      connLayer.appendChild(path1);
+      connLayer.appendChild(path2);
+    }
   }
 
   renderCardinalityBadgeAt(label, x, y) {
@@ -649,7 +511,8 @@ class CanvasRenderer {
 
     g.appendChild(rect);
     g.appendChild(text);
-    this.labelsLayer.appendChild(g);
+    const labelsLayer = (this.layers && this.layers.labelsLayer) || document.getElementById('labels-layer');
+    if (labelsLayer) labelsLayer.appendChild(g);
   }
 
   renderRoleLabelAt(roleText, x, y) {
@@ -658,7 +521,36 @@ class CanvasRenderer {
     text.setAttribute('y', y);
     text.setAttribute('class', 'role-text');
     text.textContent = `[${roleText}]`;
-    this.labelsLayer.appendChild(text);
+    const labelsLayer = (this.layers && this.layers.labelsLayer) || document.getElementById('labels-layer');
+    if (labelsLayer) labelsLayer.appendChild(text);
+  }
+
+  // --- SÍMBOLO DE SUBCONJUNTO (⊂) para conexões círculo→subclasse ---
+  // Canonical: Símbolo ⊂ com a boca aberta virada para a DIREITA (+X, 0°).
+  // A linha passa diretamente pelo centro do símbolo (y = 0).
+  renderSubsetSymbol(x, y, angleToCircleDeg) {
+    const r = 8; // Raio do semicírculo
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    
+    // Desenha o arco de 180°: começa em (r*0.2, -r), curva até (r*0.2, +r)
+    // A abertura (lados soltos do ⊂) fica virada para +X
+    const d = `M ${r * 0.2} ${-r} A ${r} ${r} 0 0 0 ${r * 0.2} ${r}`;
+    path.setAttribute('d', d);
+    path.setAttribute('transform', `translate(${x}, ${y}) rotate(${angleToCircleDeg})`);
+    path.setAttribute('class', 'subset-symbol');
+    const connLayer = (this.layers && this.layers.connectionsLayer) || document.getElementById('connections-layer');
+    if (connLayer) connLayer.appendChild(path);
+  }
+
+  // --- RÓTULO DO ATRIBUTO DEFINIDOR na linha superclasse→círculo ---
+  renderDefiningAttributeLabel(text, x, y) {
+    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('x', x);
+    label.setAttribute('y', y);
+    label.setAttribute('class', 'defining-attribute-label');
+    label.textContent = text;
+    const labelsLayer = (this.layers && this.layers.labelsLayer) || document.getElementById('labels-layer');
+    if (labelsLayer) labelsLayer.appendChild(label);
   }
 
   // --- CÁLCULO DE PONTOS DE ANCORAGEM (COM DISTRIBUIÇÃO DINÂMICA DE PORTAS E DESLOCAMENTO) ---
@@ -679,8 +571,8 @@ class CanvasRenderer {
       const w = elem.width / 2;
       const h = elem.height / 2;
 
-      // Se for conexão com Atributo (Elipse), permite sair naturalmente em qualquer ponto/borda da Entidade (diagonal)
-      if (target.type === 'attribute') {
+      // Se for conexão com Atributo (Elipse) ou Especialização (Círculo EER), permite sair naturalmente em qualquer ponto/borda da Entidade (direta/diagonal)
+      if (target.type === 'attribute' || target.type === 'specialization') {
         const absDx = Math.abs(dx);
         const absDy = Math.abs(dy);
 

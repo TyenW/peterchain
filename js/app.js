@@ -5,9 +5,13 @@
 document.addEventListener('DOMContentLoaded', () => {
   // 1. Instanciar Módulos Core
   const model = new DiagramModel();
-  const renderer = new CanvasRenderer(model);
-  const handler = new InteractionHandler(model, renderer);
-  const parser = new NLPParser(model);
+  const controller = new CanvasController(model);
+  controller.setRenderer(new ChenRenderer(model, controller.layers));
+  const handler = new InteractionHandler(model, controller);
+  const propertyEditor = new PropertyEditor(model, controller);
+  window.appPropertyEditor = propertyEditor;
+  const tabularManager = new TabularManager(model, 'visual-manager-container');
+  window.tabularManager = tabularManager;
   const historyManager = new HistoryManager(model);
   const validator = new DERValidator(model);
   const storageManager = new StorageExportManager(model);
@@ -24,6 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 2. Função de Atualização de Logs no Terminal
   function renderTerminalLog(logEntries) {
+    if (!terminalLog) return;
     terminalLog.innerHTML = '';
     logEntries.forEach(entry => {
       const div = document.createElement('div');
@@ -34,62 +39,89 @@ document.addEventListener('DOMContentLoaded', () => {
     terminalLog.scrollTop = terminalLog.scrollHeight;
   }
 
-  // 3. Execução do Parser de Linguagem Natural & Modo SQL Console Incremental
+  // 3. Sincronização JSON -> Modelo
   let isDiagramGenerated = false;
 
-  function executeNLP(appendOnly = false) {
+  function syncJSONToModel() {
     let text = nlpInput.value;
     if (!text.trim()) return;
 
-    // Se o texto for apenas uma linha de comando começando com '>', limpar o prefixo
-    text = text.replace(/^>\s*/, '');
-
-    const result = parser.parse(text, appendOnly);
-    renderTerminalLog(result.log);
-    
-    if (parsedSummary && result.summary) {
-      parsedSummary.textContent = result.summary;
-    }
-
-    if (!appendOnly) {
-      setTimeout(() => renderer.zoomToFit(), 50);
+    try {
+      const parsedData = JSON.parse(text);
+      model.fromJSON(parsedData);
+      renderTerminalLog([{ msg: 'JSON carregado com sucesso.', type: 'success', timestamp: new Date().toLocaleTimeString() }]);
       isDiagramGenerated = true;
+      setTimeout(() => controller.zoomToFit(), 50);
+    } catch (e) {
+      renderTerminalLog([{ msg: 'Erro de Sintaxe JSON: ' + e.message, type: 'error', timestamp: new Date().toLocaleTimeString() }]);
     }
   }
 
-  btnGenerate.addEventListener('click', () => executeNLP(false));
-  btnAppend.addEventListener('click', () => executeNLP(true));
+  // Quando clicar no botão sincronizar
+  if (btnGenerate) {
+    btnGenerate.addEventListener('click', () => syncJSONToModel());
+  }
 
-  btnClearText.addEventListener('click', () => {
-    nlpInput.value = '';
-    renderTerminalLog([{ msg: 'Terminal de console limpo.', type: 'info', timestamp: new Date().toLocaleTimeString() }]);
+  // Limpar texto
+  if (btnClearText) {
+    btnClearText.addEventListener('click', () => {
+      nlpInput.value = '{\n  "entities": [],\n  "attributes": [],\n  "relationships": [],\n  "connections": []\n}';
+      syncJSONToModel();
+      if (terminalLog) renderTerminalLog([{ msg: 'Editor limpo.', type: 'info', timestamp: new Date().toLocaleTimeString() }]);
+    });
+  }
+
+  // Atualizar JSON automaticamente quando o modelo mudar, a menos que o usuário esteja digitando ativamente no JSON
+  let isTypingJSON = false;
+  nlpInput.addEventListener('focus', () => isTypingJSON = true);
+  nlpInput.addEventListener('blur', () => {
+    isTypingJSON = false;
+    syncJSONToModel();
   });
-
-  // Atalhos de teclado no Terminal:
-  // Enter normal só executa se a linha começar com '>'; caso contrário insere quebra de linha normal.
   nlpInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        executeNLP(false);
-      } else if (!e.shiftKey) {
-        const val = nlpInput.value.trim();
-        if (val.startsWith('>')) {
-          e.preventDefault();
-          executeNLP(true);
-        }
-      }
+    if (e.ctrlKey && e.key === 'Enter') {
+      syncJSONToModel();
     }
   });
 
-  // 4. Carregar Preset Inicial (Modelo EER Estendido Completo)
-  if (DERPresets && DERPresets.eer) {
-    nlpInput.value = DERPresets.eer.text;
-    executeNLP(false);
-  } else if (DERPresets && DERPresets.academico) {
-    nlpInput.value = DERPresets.academico.text;
-    executeNLP(false);
-  }
+  model.subscribe(() => {
+    if (!isTypingJSON) {
+      nlpInput.value = JSON.stringify(model.toJSON(), null, 2);
+    }
+    tabularManager.render();
+  });
+
+  // Tab Switching Logic
+  const tabJson = document.getElementById('tab-json');
+  const tabVisual = document.getElementById('tab-visual');
+  const panelJson = document.getElementById('panel-json');
+  const panelVisual = document.getElementById('panel-visual');
+
+  tabJson.addEventListener('click', () => {
+    tabJson.classList.add('active');
+    tabVisual.classList.remove('active');
+    tabJson.style.borderBottomColor = 'var(--primary)';
+    tabJson.style.color = 'var(--text-main)';
+    tabVisual.style.borderBottomColor = 'transparent';
+    tabVisual.style.color = 'var(--text-muted)';
+    panelJson.style.display = 'flex';
+    panelVisual.style.display = 'none';
+  });
+
+  tabVisual.addEventListener('click', () => {
+    tabVisual.classList.add('active');
+    tabJson.classList.remove('active');
+    tabVisual.style.borderBottomColor = 'var(--primary)';
+    tabVisual.style.color = 'var(--text-main)';
+    tabJson.style.borderBottomColor = 'transparent';
+    tabJson.style.color = 'var(--text-muted)';
+    panelVisual.style.display = 'flex';
+    panelJson.style.display = 'none';
+    tabularManager.render(true);
+  });
+
+  // 4. Inicializar Tabular
+  tabularManager.render();
 
   // 5. Conectar Validador de Regras e Barra de Status
   function updateValidationStatus() {
@@ -104,12 +136,25 @@ document.addEventListener('DOMContentLoaded', () => {
     // Atualizar Drawer de Validação
     const valList = document.getElementById('validation-list');
     valList.innerHTML = '';
+    const invalidIds = new Set();
+
     valResult.issues.forEach(issue => {
+      if (issue.elementId && (issue.type === 'error' || issue.type === 'warning')) {
+        invalidIds.add(issue.elementId);
+      }
       const div = document.createElement('div');
       div.className = `val-item ${issue.type}`;
       div.textContent = issue.message;
       valList.appendChild(div);
     });
+
+    // Repassar ids inválidos ao modelo para pintar no Canvas
+    model.invalidIds = invalidIds;
+    
+    // Atualiza a renderização apenas se o controller já estiver inicializado
+    if (typeof controller !== 'undefined' && controller.render) {
+      controller.render();
+    }
   }
 
   model.subscribe(() => updateValidationStatus());
@@ -122,31 +167,42 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-close-validation').addEventListener('click', () => valDrawer.classList.add('hidden'));
 
   // 6. Botões da Toolbar
+  const notationSelector = document.getElementById('notation-selector');
+  if (notationSelector) {
+    notationSelector.addEventListener('change', (e) => {
+      const notation = e.target.value;
+      if (notation === 'chen') {
+        controller.setRenderer(new ChenRenderer(model, controller.layers));
+      }
+      renderTerminalLog([{ msg: `Notação alterada para: ${notation}`, type: 'info', timestamp: new Date().toLocaleTimeString() }]);
+    });
+  }
+
   document.getElementById('tool-select').addEventListener('click', () => handler.setTool('select'));
   document.getElementById('tool-entity').addEventListener('click', () => handler.setTool('entity'));
   document.getElementById('tool-attribute').addEventListener('click', () => handler.setTool('attribute'));
   document.getElementById('tool-relationship').addEventListener('click', () => handler.setTool('relationship'));
   document.getElementById('tool-connect').addEventListener('click', () => handler.setTool('connect'));
   document.getElementById('tool-delete').addEventListener('click', () => {
-    if (renderer.selectedElementId) {
-      model.removeElement(renderer.selectedElementId);
-      renderer.clearSelection();
-    } else if (renderer.selectedConnectionId) {
-      model.removeConnection(renderer.selectedConnectionId);
-      renderer.clearSelection();
+    if (controller.selectedElementId) {
+      model.removeElement(controller.selectedElementId);
+      controller.clearSelection();
+    } else if (controller.selectedConnectionId) {
+      model.removeConnection(controller.selectedConnectionId);
+      controller.clearSelection();
     }
   });
 
   document.getElementById('btn-undo').addEventListener('click', () => historyManager.undo());
   document.getElementById('btn-redo').addEventListener('click', () => historyManager.redo());
-  document.getElementById('btn-zoom-in').addEventListener('click', () => renderer.setZoom(renderer.zoomScale * 1.2));
-  document.getElementById('btn-zoom-out').addEventListener('click', () => renderer.setZoom(renderer.zoomScale / 1.2));
-  document.getElementById('btn-zoom-reset').addEventListener('click', () => renderer.resetZoomAndPan());
+  document.getElementById('btn-zoom-in').addEventListener('click', () => controller.setZoom(controller.zoomScale * 1.2));
+  document.getElementById('btn-zoom-out').addEventListener('click', () => controller.setZoom(controller.zoomScale / 1.2));
+  document.getElementById('btn-zoom-reset').addEventListener('click', () => controller.resetZoomAndPan());
   document.getElementById('btn-auto-layout').addEventListener('click', () => model.autoLayout());
   document.getElementById('btn-clear-canvas').addEventListener('click', () => {
     if (confirm('Tem certeza que deseja limpar todo o diagrama?')) {
       model.clear();
-      renderer.clearSelection();
+      controller.clearSelection();
     }
   });
 
@@ -169,16 +225,38 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Dropdown Exportar
+  // Dropdown Exportar (Legado - Mantido com proteção caso volte)
   const btnExportDropdown = document.getElementById('btn-export-dropdown');
   const exportMenu = document.getElementById('export-menu');
-  btnExportDropdown.addEventListener('click', (e) => {
-    e.stopPropagation();
-    exportMenu.classList.toggle('show');
-  });
+  if (btnExportDropdown && exportMenu) {
+    btnExportDropdown.addEventListener('click', (e) => {
+      e.stopPropagation();
+      exportMenu.classList.toggle('show');
+    });
+    document.addEventListener('click', () => exportMenu.classList.remove('show'));
+  }
 
-  document.addEventListener('click', () => exportMenu.classList.remove('show'));
+  // Validate before export
+  function checkExportValidation() {
+    if (window.menuManager) window.menuManager.closeAllMenus();
+    const valResult = validator.validate();
+    const errors = valResult.issues.filter(i => i.type === 'error');
+    if (errors.length > 0) {
+      if (window.tabularManager) {
+        const errorList = errors.map(e => `• ${e.message}`).join('\n\n');
+        window.tabularManager.openModal('Exportação Bloqueada', [
+          { type: 'message', label: 'Não é possível exportar o diagrama pois ele possui erros estruturais críticos:', value: errorList }
+        ], () => {});
+      } else {
+        alert('Não é possível exportar: O diagrama possui erros estruturais críticos.');
+      }
+      return false;
+    }
+    return true;
+  }
 
   document.getElementById('export-png').addEventListener('click', () => {
+    if (!checkExportValidation()) return;
     const title = projectTitleInput.value.trim().toLowerCase().replace(/\s+/g, '_');
     storageManager.exportPNG(`${title}_der_pb.png`, { isColored: false, addLegend: false });
   });
@@ -186,12 +264,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const exportPngColorBtn = document.getElementById('export-png-color');
   if (exportPngColorBtn) {
     exportPngColorBtn.addEventListener('click', () => {
+      if (!checkExportValidation()) return;
       const title = projectTitleInput.value.trim().toLowerCase().replace(/\s+/g, '_');
       storageManager.exportPNG(`${title}_der_colorido.png`, { isColored: true, addLegend: true });
     });
   }
 
   document.getElementById('export-svg').addEventListener('click', () => {
+    if (!checkExportValidation()) return;
     const title = projectTitleInput.value.trim().toLowerCase().replace(/\s+/g, '_');
     storageManager.exportSVG(`${title}_der_pb.svg`, { isColored: false, addLegend: false });
   });
@@ -199,6 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const exportSvgColorBtn = document.getElementById('export-svg-color');
   if (exportSvgColorBtn) {
     exportSvgColorBtn.addEventListener('click', () => {
+      if (!checkExportValidation()) return;
       const title = projectTitleInput.value.trim().toLowerCase().replace(/\s+/g, '_');
       storageManager.exportSVG(`${title}_der_colorido.svg`, { isColored: true, addLegend: true });
     });
@@ -251,8 +332,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // Modal de Guia de Comandos Suportados
   const modalCommands = document.getElementById('modal-commands');
   const btnCmdHelp = document.getElementById('btn-cmd-help');
+  const btnCmdHelpNav = document.getElementById('btn-cmd-help-nav');
+  
   if (btnCmdHelp) {
     btnCmdHelp.addEventListener('click', () => modalCommands.classList.remove('hidden'));
+  }
+  if (btnCmdHelpNav) {
+    btnCmdHelpNav.addEventListener('click', () => modalCommands.classList.remove('hidden'));
   }
   document.getElementById('btn-close-modal-commands').addEventListener('click', () => modalCommands.classList.add('hidden'));
 

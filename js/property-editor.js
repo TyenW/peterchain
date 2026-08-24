@@ -139,10 +139,24 @@ class PropertyEditor {
   renderAttributeEditor(attr) {
     this.titleEl.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="12" rx="9" ry="6"/></svg> Atributo`;
 
-    // Lista de entidades para alterar o pai
-    const entityOptions = this.model.entities.map(e => 
-      `<option value="${e.id}" ${attr.parentId === e.id ? 'selected' : ''}>${this.escapeHtml(e.name)}</option>`
+    // Sub-atributos atualmente vinculados a este atributo
+    const childAttrs = this.model.attributes.filter(a => a.parentId === attr.id);
+    
+    // Atributos candidatos que podem ser vinculados como sub-atributos
+    const candidateAttrs = this.model.attributes.filter(a => a.id !== attr.id && a.parentId !== attr.id);
+    const candidateOptions = candidateAttrs.map(a => 
+      `<option value="${a.id}">${this.escapeHtml(a.name)}</option>`
     ).join('');
+
+    // Opções de Elemento Pai (Entidade ou outro Atributo)
+    const parentEntityOptions = this.model.entities.map(e => 
+      `<option value="${e.id}" ${attr.parentId === e.id ? 'selected' : ''}>Entidade: ${this.escapeHtml(e.name)}</option>`
+    ).join('');
+    
+    const parentAttrOptions = this.model.attributes
+      .filter(a => a.id !== attr.id && a.parentId !== attr.id)
+      .map(a => `<option value="${a.id}" ${attr.parentId === a.id ? 'selected' : ''}>Atributo Pai: ${this.escapeHtml(a.name)}</option>`)
+      .join('');
 
     const html = `
       <div class="form-group">
@@ -179,14 +193,47 @@ class PropertyEditor {
       </div>
 
       <div class="form-group">
-        <label>Entidade / Pai Vinculado</label>
+        <label>Vínculo Superior (Pai)</label>
         <select id="prop-parent">
           <option value="">-- Sem Vinculo --</option>
-          ${entityOptions}
+          <optgroup label="Entidades">
+            ${parentEntityOptions}
+          </optgroup>
+          ${parentAttrOptions ? `<optgroup label="Atributos Compostos">${parentAttrOptions}</optgroup>` : ''}
         </select>
       </div>
 
-      <div class="form-group" style="margin-top: 10px;">
+      <!-- Seção de Atributo Composto (Sub-atributos) -->
+      <div class="form-group" style="border-top:1px solid rgba(0, 240, 255, 0.15); padding-top:12px; margin-top:8px;">
+        <label style="color:var(--accent-light); font-weight:700;">Sub-atributos (Atributo Composto)</label>
+        
+        ${childAttrs.length === 0 ? '<p style="font-size:11px; color:var(--text-muted); margin:4px 0;">Nenhum sub-atributo associado.</p>' : ''}
+        ${childAttrs.map(child => `
+          <div style="display:flex; align-items:center; justify-content:space-between; background:rgba(4,7,17,0.7); border:1px solid rgba(0,240,255,0.2); border-radius:6px; padding:6px 10px; margin-bottom:4px;">
+            <span style="font-size:12px; color:var(--text-main); font-weight:600;">${this.escapeHtml(child.name)}</span>
+            <button class="btn btn-secondary danger prop-child-remove" data-child-id="${child.id}" style="padding:2px 6px; font-size:10px;" title="Desvincular Sub-atributo">&times;</button>
+          </div>
+        `).join('')}
+
+        <!-- Criar Novo Sub-atributo -->
+        <div style="display:flex; gap:6px; margin-top:8px;">
+          <input type="text" id="prop-new-subattr-name" placeholder="Novo sub-atributo..." style="flex:1; padding:6px 8px; font-size:12px;">
+          <button id="prop-btn-add-subattr" class="btn btn-primary" style="padding:6px 10px; font-size:11px;">+ Criar</button>
+        </div>
+
+        <!-- Vincular Atributo Existente -->
+        ${candidateAttrs.length > 0 ? `
+          <div style="display:flex; gap:6px; margin-top:6px;">
+            <select id="prop-link-subattr-select" style="flex:1; padding:6px 8px; font-size:12px;">
+              <option value="">-- Vincular Existente --</option>
+              ${candidateOptions}
+            </select>
+            <button id="prop-btn-link-subattr" class="btn btn-secondary" style="padding:6px 10px; font-size:11px;">+ Vincular</button>
+          </div>
+        ` : ''}
+      </div>
+
+      <div class="form-group" style="margin-top: 12px; border-top:1px solid rgba(255,255,255,0.1); padding-top:12px;">
         <button id="prop-btn-delete" class="btn btn-secondary danger" style="width:100%; justify-content:center;">Excluir Atributo</button>
       </div>
     `;
@@ -233,6 +280,64 @@ class PropertyEditor {
         }
         this.model.notify();
       }
+    });
+
+    // Handler para criar novo sub-atributo
+    const btnAddSub = document.getElementById('prop-btn-add-subattr');
+    const inputNewSub = document.getElementById('prop-new-subattr-name');
+    if (btnAddSub && inputNewSub) {
+      const createSub = () => {
+        const subName = inputNewSub.value.trim();
+        if (subName) {
+          this.model.addAttribute(subName, attr.id);
+          this.model.autoLayout();
+          this.renderAttributeEditor(attr);
+        }
+      };
+      btnAddSub.addEventListener('click', createSub);
+      inputNewSub.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          createSub();
+        }
+      });
+    }
+
+    // Handler para vincular atributo existente
+    const btnLinkSub = document.getElementById('prop-btn-link-subattr');
+    const selectLinkSub = document.getElementById('prop-link-subattr-select');
+    if (btnLinkSub && selectLinkSub) {
+      btnLinkSub.addEventListener('click', () => {
+        const childId = selectLinkSub.value;
+        if (childId) {
+          const child = this.model.attributes.find(a => a.id === childId);
+          if (child) {
+            if (child.parentId) {
+              const oldConn = this.model.connections.find(c => (c.sourceId === child.id && c.targetId === child.parentId) || (c.sourceId === child.parentId && c.targetId === child.id));
+              if (oldConn) this.model.removeConnection(oldConn.id);
+            }
+            child.parentId = attr.id;
+            this.model.addConnection(child.id, attr.id);
+            this.model.notify();
+            this.renderAttributeEditor(attr);
+          }
+        }
+      });
+    }
+
+    // Handler para remover vínculo de sub-atributo
+    this.bodyEl.querySelectorAll('.prop-child-remove').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const childId = e.currentTarget.getAttribute('data-child-id');
+        const child = this.model.attributes.find(a => a.id === childId);
+        if (child) {
+          const oldConn = this.model.connections.find(c => (c.sourceId === child.id && c.targetId === attr.id) || (c.sourceId === attr.id && c.targetId === child.id));
+          if (oldConn) this.model.removeConnection(oldConn.id);
+          child.parentId = null;
+          this.model.notify();
+          this.renderAttributeEditor(attr);
+        }
+      });
     });
 
     document.getElementById('prop-btn-delete').addEventListener('click', () => {
@@ -284,25 +389,32 @@ class PropertyEditor {
 
       <div class="form-group">
         <label>Participantes do Relacionamento</label>
-        ${participantConns.length === 0 ? '<p style="font-size:11px; color:#64748b;">Nenhuma entidade conectada.</p>' : ''}
+        ${participantConns.length === 0 ? '<p style="font-size:11px; color:var(--text-muted);">Nenhuma entidade conectada.</p>' : ''}
         ${participantConns.map((item) => `
-          <div style="border:1px solid #334155; border-radius:8px; padding:8px; margin-bottom:8px;">
-            <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:6px;">
-              <span style="font-size:12px; font-weight:600; color:#38bdf8;">${this.escapeHtml(item.entity.name)}</span>
-              <button class="btn btn-secondary danger prop-rel-remove" data-conn-id="${item.conn.id}" style="padding:4px 8px; font-size:11px;">Remover</button>
+          <div style="background:rgba(4,7,17,0.8); border:1px solid rgba(0,240,255,0.25); border-radius:10px; padding:10px 12px; margin-bottom:10px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px;">
+              <span style="font-size:13px; font-weight:700; color:var(--accent-light);">${this.escapeHtml(item.entity.name)}</span>
+              <button class="btn btn-secondary danger prop-rel-remove" data-conn-id="${item.conn.id}" style="padding:3px 8px; font-size:11px; flex-shrink:0;">Remover</button>
             </div>
 
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-bottom:6px;">
-              <select class="prop-rel-card" data-conn-id="${item.conn.id}" data-entity-source="${item.entityIsSource}" title="Cardinalidade">
-                <option value="">-- Cardinalidade --</option>
-                <option value="1" ${item.cardVal === '1' ? 'selected' : ''}>1</option>
-                <option value="N" ${item.cardVal === 'N' ? 'selected' : ''}>N</option>
-                <option value="M" ${item.cardVal === 'M' ? 'selected' : ''}>M</option>
-              </select>
-              <input type="text" class="prop-rel-role" data-conn-id="${item.conn.id}" data-entity-source="${item.entityIsSource}" placeholder="Papel (ex.: supervisor)" value="${this.escapeHtml(item.roleVal)}">
+            <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:8px;">
+              <div style="display:flex; align-items:center; gap:6px;">
+                <label style="font-size:11px; font-weight:600; color:var(--text-muted); width:80px; flex-shrink:0; text-transform:uppercase;">Cardinalidade:</label>
+                <select class="prop-rel-card" data-conn-id="${item.conn.id}" data-entity-source="${item.entityIsSource}" title="Cardinalidade" style="flex:1; padding:6px 8px; font-size:12px;">
+                  <option value="">-- Cardinalidade --</option>
+                  <option value="1" ${item.cardVal === '1' ? 'selected' : ''}>1 (Um)</option>
+                  <option value="N" ${item.cardVal === 'N' ? 'selected' : ''}>N (Muitos)</option>
+                  <option value="M" ${item.cardVal === 'M' ? 'selected' : ''}>M (Muitos)</option>
+                </select>
+              </div>
+
+              <div style="display:flex; align-items:center; gap:6px;">
+                <label style="font-size:11px; font-weight:600; color:var(--text-muted); width:80px; flex-shrink:0; text-transform:uppercase;">Papel / Role:</label>
+                <input type="text" class="prop-rel-role" data-conn-id="${item.conn.id}" data-entity-source="${item.entityIsSource}" placeholder="Ex.: supervisor, item..." value="${this.escapeHtml(item.roleVal)}" style="flex:1; min-width:0; padding:6px 8px; font-size:12px;">
+              </div>
             </div>
 
-            <label class="checkbox-label" style="margin:0;">
+            <label class="checkbox-label" style="font-size:12px; margin:0;">
               <input type="checkbox" class="prop-rel-total" data-conn-id="${item.conn.id}" data-entity-source="${item.entityIsSource}" ${item.totalVal ? 'checked' : ''}>
               <span>Participação Total em ${this.escapeHtml(item.entity.name)}</span>
             </label>
@@ -313,15 +425,15 @@ class PropertyEditor {
       <div class="form-group">
         <label>Adicionar Participante</label>
         <div style="display:flex; gap:6px;">
-          <select id="prop-add-entity" style="flex:1;" ${availableEntities.length === 0 ? 'disabled' : ''}>
+          <select id="prop-add-entity" style="flex:1; min-width:0;" ${availableEntities.length === 0 ? 'disabled' : ''}>
             <option value="">-- Selecionar entidade --</option>
             ${addEntityOptions}
           </select>
-          <button id="prop-btn-add-entity" class="btn btn-secondary" ${availableEntities.length === 0 ? 'disabled' : ''}>Adicionar</button>
+          <button id="prop-btn-add-entity" class="btn btn-secondary" style="flex-shrink:0; padding:6px 12px;" ${availableEntities.length === 0 ? 'disabled' : ''}>Adicionar</button>
         </div>
       </div>
 
-      <div class="form-group" style="margin-top: 10px;">
+      <div class="form-group" style="margin-top: 12px; border-top:1px solid rgba(255,255,255,0.1); padding-top:12px;">
         <button id="prop-btn-delete" class="btn btn-secondary danger" style="width:100%; justify-content:center;">Excluir Relacionamento</button>
       </div>
     `;
@@ -407,30 +519,93 @@ class PropertyEditor {
 
   // --- ESPECIALIZAÇÃO EER (d, o, u) ---
   renderSpecializationEditor(spec) {
-    this.titleEl.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg> Herança EER`;
+    this.titleEl.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg> Herança EER`;
+
+    // Buscar superentidade e subentidades para exibição
+    const superEnt = spec.superEntityId ? this.model.entities.find(e => e.id === spec.superEntityId) : null;
+    const subEnts  = (spec.subEntityIds || [])
+      .map(id => this.model.entities.find(e => e.id === id))
+      .filter(Boolean);
+
+    const subEntHtml = subEnts.length > 0
+      ? subEnts.map(e => `<span style="display:inline-block;background:#1c3a2a;color:#34d399;border:1px solid #34d39955;border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600;margin:2px;">${this.escapeHtml(e.name)}</span>`).join('')
+      : '<span style="color:var(--text-dim);font-size:12px;">Nenhuma subclasse conectada.</span>';
 
     const html = `
+      <!-- Tipo d/o/u -->
       <div class="form-group">
         <label>Tipo de Especialização / Categoria</label>
         <select id="prop-spec-type">
-          <option value="d" ${spec.specType === 'd' ? 'selected' : ''}>d - Disjunta (Mutuamente Exclusiva)</option>
-          <option value="o" ${spec.specType === 'o' ? 'selected' : ''}>o - Sobreposta (Overlapping)</option>
-          <option value="u" ${spec.specType === 'u' ? 'selected' : ''}>u - União / Categoria</option>
+          <option value="d" ${spec.specType === 'd' ? 'selected' : ''}>d — Disjunta (Mutuamente Exclusiva)</option>
+          <option value="o" ${spec.specType === 'o' ? 'selected' : ''}>o — Sobreposta (Overlapping)</option>
+          <option value="u" ${spec.specType === 'u' ? 'selected' : ''}>u — União / Categoria</option>
         </select>
       </div>
 
+      <!-- Totalidade -->
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" id="prop-spec-total" ${spec.isTotal ? 'checked' : ''}>
+          <span>Especialização Total (Linha Dupla)</span>
+        </label>
+        <small style="font-size:11px;color:var(--text-dim);margin-top:2px;">Toda entidade em <strong>${superEnt ? this.escapeHtml(superEnt.name) : '?'}</strong> deve pertencer a ao menos uma subclasse.</small>
+      </div>
+
+      <!-- Atributo Definidor -->
+      <div class="form-group">
+        <label>Atributo Definidor <span style="color:var(--text-dim);font-weight:400;">(opcional)</span></label>
+        <input type="text" id="prop-spec-defining-attr" placeholder="Ex: Titulação, TipoFunc, Categoria..." value="${this.escapeHtml(spec.definingAttribute || '')}">
+        <small style="font-size:11px;color:var(--text-dim);margin-top:2px;">Exibido ao lado da linha ${superEnt ? this.escapeHtml(superEnt.name) : '?'}→círculo.</small>
+      </div>
+
+      <!-- Superclasse (read-only info) -->
+      ${superEnt ? `
+      <div class="form-group">
+        <label>Superclasse</label>
+        <div style="background:var(--bg-darker);border:1px solid var(--border-color);border-radius:6px;padding:6px 10px;font-size:13px;color:#38bdf8;font-weight:600;">${this.escapeHtml(superEnt.name)}</div>
+      </div>` : ''}
+
+      <!-- Subclasses (read-only info) -->
+      <div class="form-group">
+        <label>Subclasses conectadas</label>
+        <div style="background:var(--bg-darker);border:1px solid var(--border-color);border-radius:6px;padding:6px 10px;min-height:30px;">${subEntHtml}</div>
+      </div>
+
+      <!-- Excluir -->
       <div class="form-group" style="margin-top: 10px;">
         <button id="prop-btn-delete" class="btn btn-secondary danger" style="width:100%; justify-content:center;">Excluir Herança</button>
       </div>
     `;
     this.bodyEl.innerHTML = html;
 
+    // Tipo d/o/u
     document.getElementById('prop-spec-type').addEventListener('change', (e) => {
       spec.specType = e.target.value;
       spec.name = spec.specType.toUpperCase();
       this.model.notify();
     });
 
+    // Totalidade — atualiza o campo isTotal do spec E a conexão superclasse→círculo
+    document.getElementById('prop-spec-total').addEventListener('change', (e) => {
+      spec.isTotal = e.target.checked;
+      // Atualizar a conexão super→círculo para refletir a linha dupla/simples
+      const superConn = this.model.connections.find(
+        c => (c.sourceId === spec.superEntityId && c.targetId === spec.id)
+      );
+      if (superConn) {
+        superConn.isTotalSource = spec.isTotal;
+        superConn.isTotal       = spec.isTotal;
+      }
+      this.model.notify();
+    });
+
+    // Atributo Definidor
+    document.getElementById('prop-spec-defining-attr').addEventListener('change', (e) => {
+      spec.definingAttribute = e.target.value.trim();
+      this.model.notify();
+    });
+
+    // Excluir
     document.getElementById('prop-btn-delete').addEventListener('click', () => {
       this.model.removeElement(spec.id);
       this.renderer.clearSelection();

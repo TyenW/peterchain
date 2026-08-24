@@ -259,7 +259,7 @@ class OrthogonalRouter {
   // --- MAPEAR OPACO DE COMPONENTES/ELEMENTOS (OBSTÁCULOS COM PADDING DE 20PX) ---
   buildObstacleBoxes(currentConnId) {
     const boxes = [];
-    const margin = 20; // Padding de 20px para a linha nunca raspando na borda do retângulo
+    const margin = 12; // Padding reduzido de 20px para 12px para evitar bloqueio denso
 
     this.model.entities.forEach(e => {
       boxes.push({
@@ -276,6 +276,17 @@ class OrthogonalRouter {
         maxX: r.x + r.width / 2 + margin,
         minY: r.y - r.height / 2 - margin,
         maxY: r.y + r.height / 2 + margin
+      });
+    });
+
+    // Adiciona atributos como obstáculos, mas com margem menor para evitar bloqueios densos
+    const attrMargin = 8;
+    this.model.attributes.forEach(a => {
+      boxes.push({
+        minX: a.x - a.width / 2 - attrMargin,
+        maxX: a.x + a.width / 2 + attrMargin,
+        minY: a.y - a.height / 2 - attrMargin,
+        maxY: a.y + a.height / 2 + attrMargin
       });
     });
 

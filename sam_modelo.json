@@ -1,0 +1,190 @@
+{
+  "project": "SAM — SISTEMA ACADÊMICO DE MATRÍCULAS",
+  "version": "1.0",
+  "description": "Notação de Peter Chen (DER / EER Builder) em formato JSON",
+  "entities": [
+    {
+      "name": "Area",
+      "type": "strong",
+      "attributes": [
+        {
+          "name": "Sigla",
+          "type": "key"
+        },
+        {
+          "name": "Nome",
+          "type": "simple"
+        }
+      ]
+    },
+    {
+      "name": "Curso",
+      "type": "strong",
+      "attributes": [
+        {
+          "name": "Sigla",
+          "type": "key"
+        },
+        {
+          "name": "Nome",
+          "type": "simple"
+        },
+        {
+          "name": "Custo",
+          "type": "simple"
+        },
+        {
+          "name": "Horas",
+          "type": "derived"
+        },
+        {
+          "name": "Professores",
+          "type": "multivalued"
+        }
+      ]
+    },
+    {
+      "name": "Aluno",
+      "type": "strong",
+      "attributes": [
+        {
+          "name": "CPF",
+          "type": "key"
+        },
+        {
+          "name": "Nome",
+          "type": "simple"
+        },
+        {
+          "name": "Sexo",
+          "type": "simple"
+        },
+        {
+          "name": "DataNascimento",
+          "type": "simple"
+        }
+      ]
+    },
+    {
+      "name": "Modulo",
+      "type": "weak",
+      "attributes": [
+        {
+          "name": "Sigla",
+          "type": "partial_key"
+        },
+        {
+          "name": "Nome",
+          "type": "simple"
+        }
+      ]
+    },
+    {
+      "name": "Topico",
+      "type": "weak",
+      "attributes": [
+        {
+          "name": "Sigla",
+          "type": "partial_key"
+        },
+        {
+          "name": "Nome",
+          "type": "simple"
+        },
+        {
+          "name": "Horas",
+          "type": "simple"
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "name": "pertence",
+      "type": "regular",
+      "description": "Curso pertence obrigatoriamente a uma Área",
+      "participants": [
+        {
+          "entity": "Curso",
+          "cardinality": "N"
+        },
+        {
+          "entity": "Area",
+          "cardinality": "1"
+        }
+      ]
+    },
+    {
+      "name": "integra",
+      "type": "recursive",
+      "description": "Auto-relacionamento recursivo entre Áreas",
+      "participants": [
+        {
+          "entity": "Area",
+          "role": "integrante",
+          "cardinality": "N"
+        },
+        {
+          "entity": "Area",
+          "role": "integrada",
+          "cardinality": "1"
+        }
+      ]
+    },
+    {
+      "name": "matricula",
+      "type": "regular",
+      "description": "Matrícula de Aluno em Curso",
+      "participants": [
+        {
+          "entity": "Aluno",
+          "cardinality": "N"
+        },
+        {
+          "entity": "Curso",
+          "cardinality": "N"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "DataMatricula",
+          "type": "simple"
+        },
+        {
+          "name": "Pago",
+          "type": "simple"
+        }
+      ]
+    },
+    {
+      "name": "compoe_curso",
+      "type": "identifying",
+      "description": "Relacionamento Identificador: Curso composto por Módulos",
+      "participants": [
+        {
+          "entity": "Curso",
+          "cardinality": "1"
+        },
+        {
+          "entity": "Modulo",
+          "cardinality": "N"
+        }
+      ]
+    },
+    {
+      "name": "compoe_modulo",
+      "type": "identifying",
+      "description": "Relacionamento Identificador: Módulo composto por Tópicos",
+      "participants": [
+        {
+          "entity": "Modulo",
+          "cardinality": "1"
+        },
+        {
+          "entity": "Topico",
+          "cardinality": "N"
+        }
+      ]
+    }
+  ]
+}

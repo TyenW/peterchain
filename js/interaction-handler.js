@@ -106,8 +106,8 @@ class InteractionHandler {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
 
     const canvasCoords = this.renderer.screenToCanvasCoordinates(e.clientX, e.clientY);
-    const targetElementG = e.target.closest('.der-element');
-    const targetConnLine = e.target.closest('.connection-line');
+    const targetElementG = e.target.closest('.der-element, .canvas-element');
+    const targetConnLine = e.target.closest('.connection-line, .connection-line');
 
     // --- FERRAMENTA SELECIONAR ---
     if (this.activeTool === 'select') {

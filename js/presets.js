@@ -1,5 +1,5 @@
 /**
- * DER Builder — Presets de Exemplos (Notação Peter Chen & Pseudo-Comandos)
+ * DER Builder — Presets de Exemplos (Notação Peter Chen & EER)
  */
 const DERPresets = {
   eer: {
@@ -21,8 +21,16 @@ entidade fraca Dependente {
 // 3. Relacionamento Fraco (Identificador):
 relacionamento fraco possui (Funcionario 1:N Dependente)
 
-// 4. Herança EER (Disjunta / Sobreposta / União):
-especializacao d (Pessoa -> Aluno, Professor)`
+// 4. Especialização Parcial Disjunta (linha simples + símbolo ⊂):
+// O atributo entre [ ] é exibido ao lado da linha Funcionario→círculo
+especializacao d (Funcionario -> Mensalista, Horista) [TipoContrato]
+
+// 5. Especialização Total Sobreposta (linha dupla + símbolo ⊂):
+// 'total' = toda entidade Pessoa DEVE ser Aluno OU Professor
+especializacao total o (Pessoa -> Aluno, Professor)
+
+// 6. Categoria / União:
+categoria u (Veiculo -> Carro, Moto)`
   },
 
   academico: {

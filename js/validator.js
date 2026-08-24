@@ -150,7 +150,45 @@ class DERValidator {
             elementId: spec.id
           });
         }
+
+        // Regra de Projeto: subclasse sem atributos próprios é candidata a mesclagem
+        if (subEnt) {
+          const subAttrs = this.model.attributes.filter(a => a.parentId === subEnt.id);
+          const subConns = this.model.connections.filter(c =>
+            (c.sourceId === subEnt.id || c.targetId === subEnt.id) &&
+            !this.model.specializations.some(s => s.id === c.sourceId || s.id === c.targetId)
+          );
+          if (subAttrs.length === 0 && subConns.length === 0) {
+            issues.push({
+              type: 'warning',
+              message: `A subclasse [${subEnt.name}] não possui atributos nem relacionamentos próprios. Considere mesclá-la de volta à superclasse com um "atributo de tipo".`,
+              elementId: subEnt.id
+            });
+          }
+        }
       });
+
+      // Regra de Uso Restrito: União (u) deve ser usada com cautela
+      if (type === 'u') {
+        issues.push({
+          type: 'warning',
+          message: `Aviso de Projeto: A construção de União [u] em [${superEnt ? superEnt.name : spec.id}] deve ser usada somente se as regras do minimundo definitivamente justificarem essa estrutura. Prefira Especialização simples quando possível.`,
+          elementId: spec.id
+        });
+      }
+
+      // Info: herança completa (informativo)
+      if (superEnt && subIds.length > 0) {
+        const superAttrs = this.model.attributes.filter(a => a.parentId === superEnt.id);
+        if (superAttrs.length > 0) {
+          const attrNames = superAttrs.map(a => a.name).join(', ');
+          issues.push({
+            type: 'info',
+            message: `Herança completa: todas as subclasses de [${superEnt.name}] herdam automaticamente os atributos: ${attrNames}.`,
+            elementId: spec.id
+          });
+        }
+      }
 
       // Verifica conexões físicas do círculo de especialização para evitar artefatos quebrados.
       const specConns = this.model.connections.filter(c => c.sourceId === spec.id || c.targetId === spec.id);
@@ -167,6 +205,7 @@ class DERValidator {
         });
       }
     });
+
 
     // --- REGRA 3: Atributos órfãos (sem entidade ou relacionamento pai) ---
     this.model.attributes.forEach(attr => {

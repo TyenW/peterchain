@@ -12,7 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   
   <!-- CSS -->
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="css/main.css">
 </head>
 <body class="dark-theme">
 
@@ -31,50 +31,108 @@
         <h1>DER Builder <span class="badge">Peter Chen</span></h1>
         <p class="subtitle">Criador e editor de diagramas ER via pseudo-comandos e código ER</p>
       </div>
-    </div>
-
-    <div class="header-actions">
-      <div class="project-title-container">
+        <nav class="header-actions nav-menubar">
+      <!-- Arquivo -->
+      <div class="nav-menu">
+        <button class="nav-btn" aria-haspopup="true" aria-expanded="false">Arquivo</button>
+        <ul class="dropdown-content">
+          <li>
+            <button id="btn-new-diagram">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              <span>Novo Diagrama</span>
+            </button>
+          </li>
+          <li>
+            <button id="btn-projects-modal">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+              <span>Abrir Salvo...</span>
+            </button>
+          </li>
+          <li>
+            <button id="btn-save-local">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              <span>Salvar no Navegador</span>
+            </button>
+          </li>
+          <li class="menu-divider"></li>
+          <li>
+            <button id="import-json-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg> 
+              <span>Importar JSON</span>
+            </button>
+            <input type="file" id="import-json-file" accept=".json" style="display:none;">
+          </li>
+          <li class="has-submenu">
+            <button aria-haspopup="true" aria-expanded="false">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+              <span>Exportar</span>
+              <svg class="submenu-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+            <ul class="submenu">
+              <li class="has-submenu">
+                <button aria-haspopup="true" aria-expanded="false">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                  <span>Imagem PNG</span>
+                  <svg class="submenu-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+                <ul class="submenu">
+                  <li><button id="export-png">Preto & Branco</button></li>
+                  <li><button id="export-png-color">Colorido + Legenda</button></li>
+                </ul>
+              </li>
+              <li class="has-submenu">
+                <button aria-haspopup="true" aria-expanded="false">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  <span>Vetor SVG</span>
+                  <svg class="submenu-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+                <ul class="submenu">
+                  <li><button id="export-svg">Preto & Branco</button></li>
+                  <li><button id="export-svg-color">Colorido + Legenda</button></li>
+                </ul>
+              </li>
+              <li class="menu-divider"></li>
+              <li>
+                <button id="export-json">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M10 12a1 1 0 00-1 1v1a1 1 0 01-1 1 1 1 0 011 1v1a1 1 0 001 1M14 12a1 1 0 011 1v1a1 1 0 001 1 1 1 0 00-1 1v1a1 1 0 01-1 1"/></svg>
+                  <span>Arquivo JSON</span>
+                </button>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+  
+      <!-- Modelos -->
+      <div class="nav-menu">
+        <button class="nav-btn" aria-haspopup="true" aria-expanded="false">Modelos</button>
+        <ul class="dropdown-content">
+          <li>
+            <button id="btn-preset-menu">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h7"/></svg>
+              <span>Carregar Exemplo...</span>
+            </button>
+          </li>
+        </ul>
+      </div>
+  
+      <!-- Ajuda -->
+      <div class="nav-menu">
+        <button class="nav-btn" aria-haspopup="true" aria-expanded="false">Ajuda</button>
+        <ul class="dropdown-content">
+          <li>
+            <button id="btn-cmd-help-nav">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <span>Guia de Comandos</span>
+            </button>
+          </li>
+        </ul>
+      </div>
+  
+      <div class="project-title-container" style="margin-left: auto;">
         <input type="text" id="project-title-input" value="Sistema Acadêmico" placeholder="Nome do Projeto" title="Clique para renomear">
       </div>
-
-      <button id="btn-preset-menu" class="btn btn-secondary" title="Carregar Exemplo">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h7"/></svg>
-        <span class="btn-text-label">Exemplos</span>
-      </button>
-
-      <button id="btn-new-diagram" class="btn btn-secondary" title="Novo Diagrama (Limpar)">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-        <span class="btn-text-label">Novo</span>
-      </button>
-
-      <button id="btn-projects-modal" class="btn btn-secondary" title="Meus Diagramas Salvos">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
-        <span class="btn-text-label">Abrir</span>
-      </button>
-
-      <button id="btn-save-local" class="btn btn-secondary" title="Salvar no Navegador">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-        <span class="btn-text-label">Salvar</span>
-      </button>
-
-      <div class="dropdown">
-        <button id="btn-export-dropdown" class="btn btn-primary">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-          <span class="btn-text-label">Exportar</span>
-        </button>
-        <div class="dropdown-content" id="export-menu">
-          <button id="export-png"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> PNG (Preto & Branco)</button>
-          <button id="export-png-color"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> PNG (Colorido + Legenda)</button>
-          <button id="export-svg"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg> SVG (Preto & Branco)</button>
-          <button id="export-svg-color"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><path d="M14.5 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg> SVG (Colorido + Legenda)</button>
-          <button id="export-json"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M10 12a1 1 0 00-1 1v1a1 1 0 01-1 1 1 1 0 011 1v1a1 1 0 001 1M14 12a1 1 0 011 1v1a1 1 0 001 1 1 1 0 00-1 1v1a1 1 0 01-1 1"/></svg> Arquivo JSON</button>
-          <hr>
-          <button id="import-json-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg> Importar JSON</button>
-          <input type="file" id="import-json-file" accept=".json" style="display:none;">
-        </div>
-      </div>
-    </div>
+    </nav>
   </header>
 
   <!-- Main Container Split Layout -->
@@ -83,79 +141,60 @@
     <!-- Left Panel: ER Code Terminal & Commands -->
     <section class="nlp-panel" id="nlp-panel">
       <div class="panel-header">
-        <div class="panel-title">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-          Editor de Código ER / Pseudo-Comandos (Peter Chen)
+        <div class="panel-title" style="display:flex; justify-content: space-between; width: 100%;">
+          <span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            Controle do Modelo (JSON)
+          </span>
         </div>
       </div>
 
-      <div class="nlp-content">
-        <div class="nlp-editor-wrapper">
-          <div class="editor-header-bar">
-            <span class="editor-lang">código er (peter chen)</span>
-            <div style="display:flex; gap:4px;">
-              <button id="btn-cmd-help" class="btn-icon" title="Ver Guia de Sintaxe & Pseudo-Comandos"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></button>
-              <button id="btn-clear-text" class="btn-icon" title="Limpar código"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>
+      <div class="nlp-content" style="display: flex; flex-direction: column; height: 100%;">
+        <!-- Tabs Header -->
+        <div class="tabs-header" style="display: flex; border-bottom: 1px solid var(--border-color); background: var(--bg-darker);">
+          <button class="tab-btn active" id="tab-json" style="flex: 1; padding: 10px; background: none; border: none; color: var(--text-main); font-weight: 600; cursor: pointer; border-bottom: 2px solid var(--primary);">Editor JSON</button>
+          <button class="tab-btn" id="tab-visual" style="flex: 1; padding: 10px; background: none; border: none; color: var(--text-muted); font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent;">Gerenciador Visual</button>
+        </div>
+
+        <!-- Tab 1: JSON Editor -->
+        <div id="panel-json" class="tab-panel" style="flex: 1; display: flex; flex-direction: column;">
+          <div class="nlp-editor-wrapper" style="flex: 1; display: flex; flex-direction: column;">
+            <div class="editor-header-bar">
+              <span class="editor-lang">código json</span>
+              <div style="display:flex; gap:4px;">
+                <button id="btn-clear-text" class="btn-icon" title="Limpar código"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>
+              </div>
+            </div>
+            
+            <textarea id="nlp-input" style="flex: 1; font-family:var(--font-mono); font-size:12px; resize: none; padding: 10px;" placeholder="{
+  &#x22;entities&#x22;: [],
+  &#x22;attributes&#x22;: [],
+  &#x22;relationships&#x22;: [],
+  &#x22;connections&#x22;: []
+}"></textarea>
+          </div>
+
+          <div class="nlp-controls">
+            <button id="btn-generate-diagram" class="btn btn-success btn-large" style="width: 100%;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              Sincronizar JSON para Diagrama
+            </button>
+          </div>
+
+          <div class="terminal-log-wrapper">
+            <div class="terminal-log-header">
+              <span>Status</span>
+            </div>
+            <div id="terminal-log" class="terminal-log" style="max-height: 80px;">
+              <div class="log-entry info">> Editor JSON pronto.</div>
             </div>
           </div>
-          
-          <!-- Snippets de Inserção Rápida / Autocompletar -->
-          <div class="snippet-toolbar" style="padding: 6px 10px; background: var(--bg-darker); border-bottom: 1px solid var(--border-color); display: flex; gap: 6px; overflow-x: auto; font-size: 11px;">
-            <span style="color: var(--text-dim); align-self: center; font-weight: 600; font-size: 10px; text-transform: uppercase;">Inserir:</span>
-            <button class="btn-insert-snippet" data-snippet="Entidade {\n  *ID,\n  Nome\n}" title="Inserir bloco de Entidade Forte">+ Entidade</button>
-            <button class="btn-insert-snippet" data-snippet="entidade fraca Dependente {\n  _Codigo_,\n  Nome\n}" title="Inserir bloco de Entidade Fraca">+ Entidade Fraca</button>
-            <button class="btn-insert-snippet" data-snippet="Nome[PrimeiroNome, Sobrenome]" title="Inserir Atributo Composto">+ Atrib. Composto</button>
-            <button class="btn-insert-snippet" data-snippet="pertence (EntidadeA 1 : N EntidadeB)" title="Inserir Relacionamento Simples">+ Relacionamento</button>
-            <button class="btn-insert-snippet" data-snippet="ObrigCompoe (EntidadeA 1 : N EntidadeB)" title="Inserir Relacionamento Obrigatório (Linha Dupla)">+ Linha Dupla</button>
-            <button class="btn-insert-snippet" data-snippet="especializacao d (Super -> Sub1, Sub2)" title="Inserir Especialização EER">+ Herança EER</button>
-          </div>
-          
-          <textarea id="nlp-input" style="font-family:var(--font-mono); font-size:12px;" placeholder="// Sintaxe do Editor de Código ER / Pseudo-Comandos:
-
-// 1. Entidades e Atributos:
-Funcionario {
-  *CPF,            // Atributo Chave (Sublinhado)
-  Nome,
-  ~Idade,          // Derivado (Elipse Tracejada)
-  ++Telefones      // Multivalorado (Elipse Dupla)
-}
-
-entidade fraca Dependente {
-  _Nome_dependente, // Chave Parcial (Sublinhado Tracejado)
-  Parentesco
-}
-
-// 2. Relacionamentos e Cardinalidades:
-relacionamento fraco possui (Funcionario 1:N Dependente)
-lotado (Funcionario 1:N Departamento)
-
-// 3. Herança EER:
-especializacao d (Pessoa -> Aluno, Professor)
-
-// 4. Comandos Incrementais:
-> criar entidade Aluno
-> adicionar atributo *CPF em Aluno"></textarea>
         </div>
 
-        <div class="nlp-controls">
-          <button id="btn-generate-diagram" class="btn btn-success btn-large">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-            Executar Código
-          </button>
-          <button id="btn-append-command" class="btn btn-secondary" title="Executar comandos incrementais sem apagar o diagrama atual">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Executar Incremental
-          </button>
-        </div>
-
-        <!-- Terminal Output / Execution Log -->
-        <div class="terminal-log-wrapper">
-          <div class="terminal-log-header">
-            <span>Log do Parser de Código ER / EER</span>
-            <span id="parsed-summary" class="badge-sm">0 Entidades, 0 Atributos, 0 Relacionamentos</span>
-          </div>
-          <div id="terminal-log" class="terminal-log">
-            <div class="log-entry info">> Editor pronto. Digite o código ER/EER e clique em [Executar Código].</div>
+        <!-- Tab 2: Visual Manager -->
+        <div id="panel-visual" class="tab-panel" style="flex: 1; display: none; flex-direction: column; overflow-y: auto; padding: 10px; background: var(--bg-dark);">
+          <div id="visual-manager-container">
+            <!-- Dynamic tabular content will be injected here by tabular-manager.js -->
           </div>
         </div>
       </div>
@@ -169,6 +208,15 @@ especializacao d (Pessoa -> Aluno, Professor)
 
       <!-- Floating Toolbar -->
       <div class="canvas-toolbar" id="canvas-toolbar">
+        <div class="tool-group">
+          <select id="notation-selector" class="notation-selector" title="Escolher Notação do Diagrama">
+            <option value="chen">Notação Peter Chen</option>
+            <!-- Outras notações podem ser adicionadas aqui posteriormente -->
+          </select>
+        </div>
+
+        <div class="tool-divider"></div>
+
         <div class="tool-group">
           <button class="tool-btn active" id="tool-select" title="Selecionar e Mover (V)">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l7 18 3-7 7-3L3 3z"/></svg>
@@ -251,10 +299,36 @@ especializacao d (Pessoa -> Aluno, Professor)
               <circle cx="0" cy="0" r="1.5" fill="rgba(255, 255, 255, 0.15)"/>
             </pattern>
 
-            <!-- Glow Filters for Hover & Selection -->
-            <filter id="glow-select" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="3" result="blur" />
-              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            <!-- Cyber Glow Filters for SVG Elements -->
+            <filter id="glow-select" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="4" result="blur" />
+              <feComponentTransfer in="blur" result="glow">
+                <feFuncA type="linear" slope="1.5"/>
+              </feComponentTransfer>
+              <feMerge>
+                <feMergeNode in="glow"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+            
+            <filter id="cyber-glow-cyan" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="5" result="blur" />
+              <feFlood flood-color="#00f0ff" flood-opacity="0.8" result="color"/>
+              <feComposite in="color" in2="blur" operator="in" result="glow"/>
+              <feMerge>
+                <feMergeNode in="glow"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+
+            <filter id="cyber-glow-purple" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="5" result="blur" />
+              <feFlood flood-color="#a855f7" flood-opacity="0.8" result="color"/>
+              <feComposite in="color" in2="blur" operator="in" result="glow"/>
+              <feMerge>
+                <feMergeNode in="glow"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
             </filter>
           </defs>
 
@@ -532,18 +606,39 @@ relacionamento fraco compoe (Curso 1 : N Modulo)</pre>
           <div class="cmd-category-card">
             <div class="cmd-category-title">🧬 6. Especialização e Generalização EER</div>
             <div class="cmd-category-desc">
-              Hierarquias de herança. Tipos: <code>d</code> (Disjunta), <code>o</code> (Sobreposta) ou <code>u</code> (União/Categoria). Desenha círculo centralizado.
+              Hierarquias de herança com círculo central (⊂). Tipos: <code>d</code> (Disjunta), <code>o</code> (Sobreposta) ou <code>u</code> (União/Categoria).<br>
+              <strong>Modificadores:</strong> <code>total</code> = linha dupla (toda superentidade obriga pertencer a uma subclasse); sem modificador ou <code>parcial</code> = linha simples.<br>
+              <strong>Atributo Definidor:</strong> <code>[NomeAtrib]</code> opcional ao final — exibido ao lado da linha superclasse→círculo.
             </div>
             <div class="cmd-snippet-box">
               <div class="cmd-snippet-header">
-                <span class="cmd-snippet-label">Exemplo: Herança EER</span>
+                <span class="cmd-snippet-label">Parcial + Disjunta + Atributo Definidor</span>
                 <div class="cmd-actions">
-                  <button class="btn-copy-code" data-code="especializacao d (Pessoa -> Aluno, Professor)&#10;especializacao o (Funcionario -> Engenheiro, Gerente)">📋 Copiar</button>
-                  <button class="btn-load-code" data-code="especializacao d (Pessoa -> Aluno, Professor)&#10;especializacao o (Funcionario -> Engenheiro, Gerente)">▶ Testar no Editor</button>
+                  <button class="btn-copy-code" data-code="especializacao d (Funcionario -> Mensalista, Horista) [TipoContrato]">📋 Copiar</button>
+                  <button class="btn-load-code" data-code="especializacao d (Funcionario -> Mensalista, Horista) [TipoContrato]">▶ Testar</button>
                 </div>
               </div>
-              <pre class="cmd-code-block">especializacao d (Pessoa -> Aluno, Professor)
-especializacao o (Funcionario -> Engenheiro, Gerente)</pre>
+              <pre class="cmd-code-block">especializacao d (Funcionario -> Mensalista, Horista) [TipoContrato]</pre>
+            </div>
+            <div class="cmd-snippet-box" style="margin-top:8px;">
+              <div class="cmd-snippet-header">
+                <span class="cmd-snippet-label">Total + Sobreposta (linha dupla)</span>
+                <div class="cmd-actions">
+                  <button class="btn-copy-code" data-code="especializacao total o (Pessoa -> Aluno, Professor)">📋 Copiar</button>
+                  <button class="btn-load-code" data-code="especializacao total o (Pessoa -> Aluno, Professor)">▶ Testar</button>
+                </div>
+              </div>
+              <pre class="cmd-code-block">especializacao total o (Pessoa -> Aluno, Professor)</pre>
+            </div>
+            <div class="cmd-snippet-box" style="margin-top:8px;">
+              <div class="cmd-snippet-header">
+                <span class="cmd-snippet-label">Categoria / União (u)</span>
+                <div class="cmd-actions">
+                  <button class="btn-copy-code" data-code="categoria u (Veiculo -> Carro, Moto)">📋 Copiar</button>
+                  <button class="btn-load-code" data-code="categoria u (Veiculo -> Carro, Moto)">▶ Testar</button>
+                </div>
+              </div>
+              <pre class="cmd-code-block">categoria u (Veiculo -> Carro, Moto)</pre>
             </div>
           </div>
 
@@ -628,6 +723,13 @@ matricula (Aluno N : N Curso) {
   Pago
 }
 
+relacionamento fraco compoe_curso ( N : N Curso)
+
+matricula (Aluno N : N Curso) {
+  DataMatricula,
+  Pago
+}
+
 relacionamento fraco compoe_curso (Curso 1 : N Modulo)
 relacionamento fraco compoe_modulo (Modulo 1 : N Topico)</pre>
             </div>
@@ -637,18 +739,40 @@ relacionamento fraco compoe_modulo (Modulo 1 : N Topico)</pre>
       </div>
     </div>
   </div>
+  <!-- Modal: Custom Dynamic Prompts (Glassmorphism) -->
+  <div class="modal-overlay hidden" id="modal-custom" style="backdrop-filter: blur(10px); background-color: rgba(5, 8, 17, 0.85); transition: opacity 0.3s ease;">
+    <div class="modal-card" style="box-shadow: 0 20px 40px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); background: rgba(15, 23, 42, 0.95); transform: translateY(20px); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
+      <div class="modal-header" style="background: transparent; border-bottom: 1px solid rgba(255,255,255,0.05);">
+        <h3 id="modal-custom-title" style="color: var(--accent-light);">Título</h3>
+        <button class="modal-close" id="btn-close-modal-custom">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-custom-body" style="padding: 24px;">
+        <!-- Dynamic form fields injected here -->
+      </div>
+      <div class="modal-footer" style="padding: 16px 24px; display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid rgba(255,255,255,0.05);">
+        <button class="btn btn-secondary" id="btn-cancel-modal-custom">Cancelar</button>
+        <button class="btn btn-primary" id="btn-confirm-modal-custom">Confirmar</button>
+      </div>
+    </div>
+  </div>
 
   <!-- JavaScript Modules -->
-  <script src="js/presets.js"></script>
-  <script src="js/diagram-model.js?v=6"></script>
-  <script src="js/orthogonal-router.js?v=6"></script>
-  <script src="js/nlp-parser.js?v=6"></script>
-  <script src="js/history-manager.js?v=6"></script>
-  <script src="js/validator.js?v=6"></script>
-  <script src="js/storage-export.js?v=6"></script>
-  <script src="js/canvas-renderer.js?v=6"></script>
-  <script src="js/interaction-handler.js?v=6"></script>
-  <script src="js/property-editor.js?v=6"></script>
-  <script src="js/app.js?v=6"></script>
+  <script src="js/presets.js?v=7"></script>
+  <script src="js/diagram-model.js?v=7"></script>
+  <script src="js/orthogonal-router.js?v=7"></script>
+  <script src="js/tabular-manager.js?v=7"></script>
+  <script src="js/history-manager.js?v=7"></script>
+  
+  <!-- Renderizadores -->
+  <script src="js/renderers/renderer-base.js?v=7"></script>
+  <script src="js/renderers/chen-renderer.js?v=7"></script>
+  
+  <script src="js/canvas-controller.js?v=7"></script>
+  <script src="js/interaction-handler.js?v=7"></script>
+  <script src="js/validator.js?v=7"></script>
+  <script src="js/storage-export.js?v=7"></script>
+  <script src="js/property-editor.js?v=7"></script>
+  <script src="js/menu-manager.js?v=7"></script>
+  <script src="js/app.js?v=7"></script>
 </body>
 </html>

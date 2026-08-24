@@ -1,0 +1,85 @@
+/* ==========================================================================
+   DER Builder — Futuristic Cyber-Glass Theme Tokens
+   ========================================================================== */
+
+:root {
+  /* Futuristic Deep Space & Obsidian Theme Colors */
+  --bg-darker: #040711;
+  --bg-dark: #080d1a;
+  --bg-panel: rgba(13, 20, 36, 0.75);
+  --bg-card: rgba(18, 28, 51, 0.65);
+  --bg-input: rgba(6, 11, 23, 0.8);
+  --border-color: rgba(56, 189, 248, 0.18);
+  --border-glow: rgba(0, 240, 255, 0.5);
+  --border-focus: #00f0ff;
+  
+  /* Brand & Cyber Accent Colors */
+  --primary: #0284c7;
+  --primary-hover: #0369a1;
+  --primary-glow: rgba(0, 240, 255, 0.4);
+  --accent: #00f0ff;
+  --accent-light: #7dd3fc;
+  --accent-purple: #a855f7;
+  --accent-pink: #ec4899;
+  
+  --success: #10b981;
+  --success-hover: #059669;
+  --success-glow: rgba(16, 185, 129, 0.4);
+  
+  --warning: #f59e0b;
+  --danger: #f43f5e;
+  --danger-hover: #e11d48;
+  --danger-glow: rgba(244, 63, 94, 0.4);
+
+  /* Typography */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-code: 'Fira Code', monospace;
+  --text-main: #f1f5f9;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+  --text-cyber: #00f0ff;
+
+  /* Peter Chen Cyber Diagram Colors */
+  --entity-fill: rgba(15, 23, 42, 0.9);
+  --entity-stroke: #00f0ff;
+  --entity-text: #ffffff;
+
+  --attribute-fill: rgba(6, 18, 38, 0.9);
+  --attribute-stroke: #10b981;
+  --attribute-text: #e2e8f0;
+
+  --relationship-fill: rgba(46, 16, 101, 0.9);
+  --relationship-stroke: #c084fc;
+  --relationship-text: #f3e8ff;
+
+  --connection-stroke: #475569;
+  --connection-active: #00f0ff;
+  
+  /* Layout Dimensions */
+  --header-height: 58px;
+  --toolbar-height: 50px;
+  --status-height: 38px;
+  
+  /* Transitions & Micro-Animations */
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-bounce: 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Sci-Fi Glassmorphism & Cyber Shadows */
+  --glass-bg: rgba(13, 20, 36, 0.7);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.1);
+  --glass-blur: blur(16px);
+  
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.7);
+  
+  --shadow-neon-cyan: 0 0 15px rgba(0, 240, 255, 0.35), 0 0 30px rgba(0, 240, 255, 0.15);
+  --shadow-neon-purple: 0 0 15px rgba(168, 85, 247, 0.35), 0 0 30px rgba(168, 85, 247, 0.15);
+  --shadow-neon-emerald: 0 0 15px rgba(16, 185, 129, 0.35);
+
+  /* Cyber Gradients */
+  --gradient-cyber: linear-gradient(135deg, #00f0ff 0%, #a855f7 100%);
+  --gradient-glass: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
+  --gradient-neon-btn: linear-gradient(135deg, rgba(2, 132, 199, 0.8) 0%, rgba(168, 85, 247, 0.8) 100%);
+}

@@ -16,6 +16,7 @@ class DiagramModel {
   }
 
   notify() {
+    if (this._suppressNotify) return;
     this.listeners.forEach(fn => fn(this));
   }
 
@@ -155,15 +156,17 @@ class DiagramModel {
   }
 
   // --- ESPECIALIZAÇÕES EER (d, o, u) ---
-  addSpecialization(specType = 'd', superEntityId, subEntityIds = [], x = 300, y = 300) {
+  addSpecialization(specType = 'o', superEntityId, subEntityIds = [], x = 300, y = 300, isTotal = false, definingAttribute = '') {
     const validTypes = ['d', 'o', 'u'];
-    const type = validTypes.includes(specType.toLowerCase()) ? specType.toLowerCase() : 'd';
+    const type = validTypes.includes(specType.toLowerCase()) ? specType.toLowerCase() : 'o';
 
     const spec = {
       id: this.generateId('spec'),
       name: type.toUpperCase(),
       type: 'specialization',
       specType: type,
+      isTotal: Boolean(isTotal),          // true = linha dupla (especialização total), false = linha simples (parcial)
+      definingAttribute: (definingAttribute || '').trim(), // atributo que define a divisão (ex: "Titulação")
       superEntityId,
       subEntityIds,
       x,
@@ -174,10 +177,15 @@ class DiagramModel {
 
     this.specializations.push(spec);
 
-    // Conectar super-entidade e sub-entidades automaticamente
+    // Conectar super-entidade → círculo (linha dupla se isTotal = true)
     if (superEntityId) {
-      this.addConnection(superEntityId, spec.id);
+      this.addConnection(superEntityId, spec.id, '', '', {
+        isTotalSource: Boolean(isTotal),
+        isTotalTarget: false,
+        isTotal: Boolean(isTotal)
+      });
     }
+    // Conectar círculo → sub-entidades (sempre linha simples com símbolo ⊂)
     subEntityIds.forEach(subId => {
       this.addConnection(spec.id, subId);
     });
@@ -314,11 +322,20 @@ class DiagramModel {
     });
 
     // Posicionar Entidades alinhadas em grade ortogonal
-    sortedEntities.forEach((entity, index) => {
-      const col = index % cols;
-      const row = Math.floor(index / cols);
+    // Entidades participantes de especialização são puladas aqui e posicionadas pelo bloco EER abaixo
+    const specParticipantIds = new Set([
+      ...this.specializations.map(s => s.superEntityId),
+      ...this.specializations.flatMap(s => s.subEntityIds)
+    ].filter(Boolean));
+
+    let gridIdx = 0;
+    sortedEntities.forEach((entity) => {
+      if (specParticipantIds.has(entity.id)) return; // Será posicionada pelo EER layout
+      const col = gridIdx % cols;
+      const row = Math.floor(gridIdx / cols);
       entity.x = Math.round((startX + col * spacingX) / 40) * 40;
       entity.y = Math.round((startY + row * spacingY) / 40) * 40;
+      gridIdx++;
     });
 
     // 2. POSICIONAR RELACIONAMENTOS EM ÂNGULOS DE 90° (ORTOGONAIS) ENTRE AS ENTIDADES
@@ -362,21 +379,74 @@ class DiagramModel {
       }
     });
 
-    // 3. POSICIONAR ESPECIALIZAÇÕES EER (NO EIXO VERTICAL/DIRETO DE 90°)
-    this.specializations.forEach(spec => {
-      const superEnt = this.entities.find(e => e.id === spec.superEntityId);
-      const subEnts = spec.subEntityIds.map(id => this.entities.find(e => e.id === id)).filter(Boolean);
+    // 3. POSICIONAR ESPECIALIZAÇÕES EER — Layout Idêntico à Notação Padrão (Imagem de Referência)
+    // Estratégia:
+    //   - Círculo (d/o/u): no centro (X, Y)
+    //   - Superclasse:     diretamente ACIMA do círculo (X, Y - 180)
+    //   - Subclasse 1:     à ESQUERDA do círculo, na MESMA altura (X - 260, Y)
+    //   - Subclasse 2:     à DIREITA do círculo, na MESMA altura (X + 260, Y)
+    //   - Subclasses N≥3:  abaixo do círculo (X, Y + 180)
 
-      if (superEnt && subEnts.length > 0) {
-        const avgSubX = subEnts.reduce((sum, e) => sum + e.x, 0) / subEnts.length;
-        const avgSubY = subEnts.reduce((sum, e) => sum + e.y, 0) / subEnts.length;
-        spec.x = Math.round(((superEnt.x + avgSubX) / 2) / 20) * 20;
-        spec.y = Math.round(((superEnt.y + avgSubY) / 2) / 20) * 20;
-      } else if (superEnt) {
-        spec.x = superEnt.x;
-        spec.y = superEnt.y + 140;
+    const positionedBySpec = new Set();
+    let specGroupOffsetX = 0;
+
+    this.specializations.forEach((spec) => {
+      const superEnt = this.entities.find(e => e.id === spec.superEntityId);
+      const subEnts  = spec.subEntityIds
+        .map(id => this.entities.find(e => e.id === id))
+        .filter(Boolean);
+
+      if (subEnts.length === 0) return;
+
+      const specX = startX + specGroupOffsetX + 260;
+      const specY = startY + 180;
+
+      spec.x = Math.round(specX / 40) * 40;
+      spec.y = Math.round(specY / 40) * 40;
+
+      // Superclasse diretamente acima do círculo
+      if (superEnt) {
+        superEnt.x = spec.x;
+        superEnt.y = Math.round((spec.y - 180) / 40) * 40;
+        positionedBySpec.add(superEnt.id);
       }
+
+      if (subEnts.length === 1) {
+        subEnts[0].x = spec.x;
+        subEnts[0].y = Math.round((spec.y + 180) / 40) * 40;
+        positionedBySpec.add(subEnts[0].id);
+      } else if (subEnts.length === 2) {
+        // Layout Padrão EER com 2 subclasses (Sub1 ← (d) → Sub2 na mesma linha horizontal Y)
+        subEnts[0].x = Math.round((spec.x - 260) / 40) * 40;
+        subEnts[0].y = spec.y; // Mesma altura Y do círculo!
+        positionedBySpec.add(subEnts[0].id);
+
+        subEnts[1].x = Math.round((spec.x + 260) / 40) * 40;
+        subEnts[1].y = spec.y; // Mesma altura Y do círculo!
+        positionedBySpec.add(subEnts[1].id);
+      } else {
+        // N >= 3 subclasses: Esquerda, Direita e as demais abaixo
+        subEnts[0].x = Math.round((spec.x - 280) / 40) * 40;
+        subEnts[0].y = spec.y;
+        positionedBySpec.add(subEnts[0].id);
+
+        subEnts[1].x = Math.round((spec.x + 280) / 40) * 40;
+        subEnts[1].y = spec.y;
+        positionedBySpec.add(subEnts[1].id);
+
+        const remaining = subEnts.slice(2);
+        const remGap = 240;
+        const remStartX = spec.x - ((remaining.length - 1) * remGap) / 2;
+        remaining.forEach((subEnt, rIdx) => {
+          subEnt.x = Math.round((remStartX + rIdx * remGap) / 40) * 40;
+          subEnt.y = Math.round((spec.y + 180) / 40) * 40;
+          positionedBySpec.add(subEnt.id);
+        });
+      }
+
+      specGroupOffsetX += 580;
     });
+
 
     // 4. DISTRIBUIR ATRIBUTOS DAS ENTIDADES EM ÂNGULOS DE 90° E 45° ESPARSOS
     this.entities.forEach(entity => {
@@ -534,22 +604,129 @@ class DiagramModel {
 
   fromJSON(data) {
     if (!data) return;
-    this.entities = data.entities || [];
-    this.attributes = data.attributes || [];
-    this.relationships = data.relationships || [];
-    this.specializations = data.specializations || [];
-    this.connections = (data.connections || []).map(conn => {
-      const totalSource = conn.isTotalSource !== undefined ? Boolean(conn.isTotalSource) : Boolean(conn.isTotal);
-      const totalTarget = conn.isTotalTarget !== undefined ? Boolean(conn.isTotalTarget) : Boolean(conn.isTotal);
-      return {
-        ...conn,
-        isTotalSource: totalSource,
-        isTotalTarget: totalTarget,
-        isTotal: Boolean(totalSource || totalTarget),
-        roleSource: conn.roleSource || '',
-        roleTarget: conn.roleTarget || ''
-      };
-    });
-    this.notify();
+
+    // Auto-detect format: if first entity lacks an ID, or if 'connections' is missing but relationships have 'participants', it's the external DSL format
+    const isExternalFormat = (data.entities && data.entities.length > 0 && !data.entities[0].id) ||
+                             (data.relationships && data.relationships.length > 0 && data.relationships[0].participants);
+
+    this._suppressNotify = true;
+    try {
+      if (isExternalFormat) {
+        this._parseExternalJSON(data);
+      } else {
+        this.entities = data.entities || [];
+        this.attributes = data.attributes || [];
+        this.relationships = data.relationships || [];
+        this.specializations = data.specializations || [];
+        this.connections = (data.connections || []).map(conn => {
+          const totalSource = conn.isTotalSource !== undefined ? Boolean(conn.isTotalSource) : Boolean(conn.isTotal);
+          const totalTarget = conn.isTotalTarget !== undefined ? Boolean(conn.isTotalTarget) : Boolean(conn.isTotal);
+          return {
+            ...conn,
+            isTotalSource: totalSource,
+            isTotalTarget: totalTarget,
+            isTotal: Boolean(totalSource || totalTarget),
+            roleSource: conn.roleSource || '',
+            roleTarget: conn.roleTarget || ''
+          };
+        });
+      }
+    } finally {
+      this._suppressNotify = false;
+    }
+
+    if (isExternalFormat || this._positionsNeedAutoLayout()) {
+      this.autoLayout();
+    } else {
+      this.notify();
+    }
+  }
+
+  _positionsNeedAutoLayout() {
+    const elements = this.getAllElements();
+    if (elements.length === 0) return false;
+
+    const missingCoords = elements.some(el => typeof el.x !== 'number' || typeof el.y !== 'number');
+    if (missingCoords) return true;
+
+    if (elements.length === 1) return false;
+
+    const first = elements[0];
+    return elements.every(el => el.x === first.x && el.y === first.y);
+  }
+
+  _parseExternalJSON(data) {
+    this.entities = [];
+    this.attributes = [];
+    this.relationships = [];
+    this.connections = [];
+    this.specializations = [];
+
+    const entityNameMap = new Map();
+
+    // 1. Entities
+    if (data.entities) {
+      data.entities.forEach(entData => {
+        const isWeak = entData.type === 'weak';
+        const { element: ent } = this.addEntity(entData.name, 0, 0, isWeak);
+        entityNameMap.set(entData.name, ent.id);
+
+        if (entData.attributes) {
+          entData.attributes.forEach(attrData => {
+            const opts = {
+              isKey: attrData.type === 'key',
+              isPartialKey: attrData.type === 'partial_key',
+              isMultivalued: attrData.type === 'multivalued',
+              isDerived: attrData.type === 'derived'
+            };
+            this.addAttribute(attrData.name, ent.id, opts);
+          });
+        }
+      });
+    }
+
+    // 2. Relationships
+    if (data.relationships) {
+      data.relationships.forEach(relData => {
+        const isWeak = relData.type === 'identifying';
+        const { element: rel } = this.addRelationship(relData.name, 0, 0, isWeak);
+
+        if (relData.attributes) {
+          relData.attributes.forEach(attrData => {
+            const opts = {
+              isKey: attrData.type === 'key',
+              isPartialKey: attrData.type === 'partial_key',
+              isMultivalued: attrData.type === 'multivalued',
+              isDerived: attrData.type === 'derived'
+            };
+            this.addAttribute(attrData.name, rel.id, opts);
+          });
+        }
+
+        if (relData.participants) {
+          relData.participants.forEach(part => {
+            const targetId = entityNameMap.get(part.entity);
+            if (targetId) {
+              this.addConnection(rel.id, targetId, '', part.cardinality || '', {
+                isTotalTarget: Boolean(part.total),
+                roleTarget: part.role || ''
+              });
+            }
+          });
+        }
+      });
+    }
+
+    // 3. Specializations
+    if (data.specializations) {
+      data.specializations.forEach(specData => {
+        const superId = entityNameMap.get(specData.superEntity);
+        const subIds = (specData.subEntities || []).map(name => entityNameMap.get(name)).filter(Boolean);
+
+        if (superId && subIds.length > 0) {
+          this.addSpecialization(specData.type || 'd', superId, subIds, undefined, undefined, Boolean(specData.total));
+        }
+      });
+    }
   }
 }
