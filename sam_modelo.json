@@ -4,6 +4,24 @@
   "description": "Notação de Peter Chen (DER / EER Builder) em formato JSON",
   "entities": [
     {
+      "name": "Empregado",
+      "type": "strong",
+      "attributes": [
+        {
+          "name": "CPF",
+          "type": "key"
+        },
+        {
+          "name": "Nome",
+          "type": "simple"
+        },
+        {
+          "name": "Cargo",
+          "type": "simple"
+        }
+      ]
+    },
+    {
       "name": "Area",
       "type": "strong",
       "attributes": [
@@ -99,6 +117,23 @@
     }
   ],
   "relationships": [
+    {
+      "name": "supervisao",
+      "type": "recursive",
+      "description": "Auto-relacionamento recursivo entre Empregados (Supervisão)",
+      "participants": [
+        {
+          "entity": "Empregado",
+          "role": "É supervisionado",
+          "cardinality": "1"
+        },
+        {
+          "entity": "Empregado",
+          "role": "Supervisiona",
+          "cardinality": "N"
+        }
+      ]
+    },
     {
       "name": "pertence",
       "type": "regular",

@@ -359,30 +359,72 @@ class ChenRenderer extends window.RendererBase {
           const relPt = relIsTarget ? endPt : startPt;
           const neighborPt = relIsTarget ? pathPoints[pathPoints.length - 2] : pathPoints[1];
 
-          // 25px antes de chegar no losango ao longo da reta final
           const segDx = relPt.x - neighborPt.x;
           const segDy = relPt.y - neighborPt.y;
           const segLen = Math.hypot(segDx, segDy) || 1;
 
-          const cardX = relPt.x - (segDx / segLen) * 28 + (-segDy / segLen) * 14;
-          const cardY = relPt.y - (segDy / segLen) * 28 + (segDx / segLen) * 14;
+          let cardX, cardY;
+          if (count > 1) {
+            // Em auto-relacionamentos recursivos, posiciona a badge de cardinalidade na ponta do losango
+            if (relPt.face === 'north') {
+              cardX = relPt.x - 20;
+              cardY = relPt.y - 18;
+            } else if (relPt.face === 'south') {
+              cardX = relPt.x + 20;
+              cardY = relPt.y + 18;
+            } else if (relPt.face === 'west') {
+              cardX = relPt.x - 22;
+              cardY = relPt.y - 14;
+            } else if (relPt.face === 'east') {
+              cardX = relPt.x + 22;
+              cardY = relPt.y + 14;
+            } else {
+              cardX = relPt.x - (segDx / segLen) * 28 + (-segDy / segLen) * 14;
+              cardY = relPt.y - (segDy / segLen) * 28 + (segDx / segLen) * 14;
+            }
+          } else {
+            cardX = relPt.x - (segDx / segLen) * 28 + (-segDy / segLen) * 14;
+            cardY = relPt.y - (segDy / segLen) * 28 + (segDx / segLen) * 14;
+          }
 
           this.renderCardinalityBadgeAt(cardValue, cardX, cardY);
         }
 
-        // Renderizar rótulos de Papel (Role names) nas conexões se definidos (perto da entidade)
+        // Renderizar rótulos de Papel (Role names) nas conexões se definidos
         const roleText = conn.roleSource || conn.roleTarget;
         if (roleText) {
-          const entPt = relIsTarget ? startPt : endPt;
-          const neighborPt = relIsTarget ? pathPoints[1] : pathPoints[pathPoints.length - 2];
-          const segDx = neighborPt.x - entPt.x;
-          const segDy = neighborPt.y - entPt.y;
-          const segLen = Math.hypot(segDx, segDy) || 1;
+          if (count > 1 && pathPoints.length >= 4) {
+            // No auto-relacionamento recursivo (loop de 2 linhas):
+            // Posicionar o papel no meio do segmento paralelo (trilho horizontal ou vertical)
+            const p2 = pathPoints[2];
+            const p3 = pathPoints[3];
+            const midX = (p2.x + p3.x) / 2;
+            const midY = (p2.y + p3.y) / 2;
 
-          const roleX = entPt.x + (segDx / segLen) * 35;
-          const roleY = entPt.y + (segDy / segLen) * 35 - 12;
+            let roleX = midX;
+            let roleY = midY;
 
-          this.renderRoleLabelAt(roleText, roleX, roleY);
+            if (fSource === 'north' || fSource === 'south') {
+              // Trilho horizontal: coloca texto acima (north) ou abaixo (south) da linha
+              roleY = (fSource === 'north') ? midY - 8 : midY + 16;
+            } else {
+              // Trilho vertical: coloca texto à esquerda (west) ou à direita (east)
+              roleX = (fSource === 'west') ? midX - 12 : midX + 12;
+            }
+
+            this.renderRoleLabelAt(roleText, roleX, roleY);
+          } else {
+            const entPt = relIsTarget ? startPt : endPt;
+            const neighborPt = relIsTarget ? pathPoints[1] : pathPoints[pathPoints.length - 2];
+            const segDx = neighborPt.x - entPt.x;
+            const segDy = neighborPt.y - entPt.y;
+            const segLen = Math.hypot(segDx, segDy) || 1;
+
+            const roleX = entPt.x + (segDx / segLen) * 35;
+            const roleY = entPt.y + (segDy / segLen) * 35 - 12;
+
+            this.renderRoleLabelAt(roleText, roleX, roleY);
+          }
         }
 
         // === EER: Símbolo ⊂ nas conexões círculo→subclasse ===
@@ -520,7 +562,7 @@ class ChenRenderer extends window.RendererBase {
     text.setAttribute('x', x);
     text.setAttribute('y', y);
     text.setAttribute('class', 'role-text');
-    text.textContent = `[${roleText}]`;
+    text.textContent = roleText;
     const labelsLayer = (this.layers && this.layers.labelsLayer) || document.getElementById('labels-layer');
     if (labelsLayer) labelsLayer.appendChild(text);
   }

@@ -290,7 +290,6 @@ class PropertyEditor {
         const subName = inputNewSub.value.trim();
         if (subName) {
           this.model.addAttribute(subName, attr.id);
-          this.model.autoLayout();
           this.renderAttributeEditor(attr);
         }
       };
@@ -368,8 +367,7 @@ class PropertyEditor {
       })
       .filter(Boolean);
 
-    const connectedIds = new Set(participantConns.map(item => item.entity.id));
-    const availableEntities = this.model.entities.filter(e => !connectedIds.has(e.id));
+    const availableEntities = this.model.entities;
     const addEntityOptions = availableEntities
       .map(e => `<option value="${e.id}">${this.escapeHtml(e.name)}</option>`)
       .join('');
@@ -506,7 +504,7 @@ class PropertyEditor {
 
         const entity = this.model.getElementById(entityId);
         const isTotalSource = Boolean(rel.isWeak && entity && entity.isWeak);
-        this.model.addConnection(entityId, rel.id, 'N', '', { isTotalSource });
+        this.model.addConnection(rel.id, entityId, '', 'N', { isTotalTarget: isTotalSource, forceNew: true });
         this.renderRelationshipEditor(rel);
       });
     }

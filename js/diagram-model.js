@@ -54,8 +54,61 @@ class DiagramModel {
     this.notify();
   }
 
+  // --- LOCALIZAR POSIÇÃO DESOCUPADA SEM ALTERAR OS OUTROS ELEMENTOS ---
+  isPositionOccupied(x, y, w = 90, h = 45) {
+    const all = this.getAllElements();
+    const margin = 20;
+
+    return all.some(el => {
+      const elW = el.width || 90;
+      const elH = el.height || 45;
+      return Math.abs(el.x - x) < (w / 2 + elW / 2 + margin) &&
+             Math.abs(el.y - y) < (h / 2 + elH / 2 + margin);
+    });
+  }
+
+  findPositionNear(parentElem = null, defaultX = 400, defaultY = 300, width = 90, height = 45) {
+    if (parentElem && typeof parentElem.x === 'number' && typeof parentElem.y === 'number') {
+      const baseRadius = 110;
+      const angleStep = Math.PI / 6;
+
+      for (let round = 1; round <= 4; round++) {
+        const radius = baseRadius * (1 + (round - 1) * 0.4);
+        for (let angle = -Math.PI / 2; angle < (3 / 2) * Math.PI; angle += angleStep) {
+          const candX = Math.round((parentElem.x + Math.cos(angle) * radius) / 20) * 20;
+          const candY = Math.round((parentElem.y + Math.sin(angle) * radius) / 20) * 20;
+
+          if (!this.isPositionOccupied(candX, candY, width, height)) {
+            return { x: candX, y: candY };
+          }
+        }
+      }
+      return { x: parentElem.x + 120, y: parentElem.y + 60 };
+    }
+
+    const baseCenterX = defaultX || 400;
+    const baseCenterY = defaultY || 300;
+
+    for (let r = 0; r <= 600; r += 40) {
+      for (let dx = -r; dx <= r; dx += 40) {
+        for (let dy = -r; dy <= r; dy += 40) {
+          if (Math.abs(dx) === r || Math.abs(dy) === r) {
+            const candX = Math.round((baseCenterX + dx) / 20) * 20;
+            const candY = Math.round((baseCenterY + dy) / 20) * 20;
+
+            if (!this.isPositionOccupied(candX, candY, width, height)) {
+              return { x: candX, y: candY };
+            }
+          }
+        }
+      }
+    }
+
+    return { x: baseCenterX, y: baseCenterY };
+  }
+
   // --- ENTIDADES ---
-  addEntity(name, x = 200, y = 200, isWeak = false) {
+  addEntity(name, x = 0, y = 0, isWeak = false) {
     const formattedName = name.trim().toUpperCase();
     let existing = this.entities.find(e => e.name === formattedName);
     if (existing) {
@@ -65,13 +118,21 @@ class DiagramModel {
     }
 
     const dims = this.calculateDimensions('entity', formattedName);
+    let posX = x;
+    let posY = y;
+    if (!posX && !posY) {
+      const pos = this.findPositionNear(null, 400, 300, dims.width, dims.height);
+      posX = pos.x;
+      posY = pos.y;
+    }
+
     const entity = {
       id: this.generateId('entity'),
       name: formattedName,
       type: 'entity',
       isWeak: Boolean(isWeak),
-      x,
-      y,
+      x: posX,
+      y: posY,
       width: dims.width,
       height: dims.height
     };
@@ -83,7 +144,7 @@ class DiagramModel {
 
   // --- ATRIBUTOS ---
   addAttribute(name, parentId = null, options = {}, x = 0, y = 0) {
-    // Acepta booleano (para retrocompatibilidade com isKey) ou objeto options
+    // Aceita booleano (para retrocompatibilidade com isKey) ou objeto options
     const opts = typeof options === 'boolean' ? { isKey: options } : (options || {});
     const formattedName = name.trim();
     if (!formattedName) return null;
@@ -102,6 +163,15 @@ class DiagramModel {
     }
 
     const dims = this.calculateDimensions('attribute', formattedName);
+    let posX = x;
+    let posY = y;
+    if (!posX && !posY) {
+      const parentElem = parentId ? this.getElementById(parentId) : null;
+      const pos = this.findPositionNear(parentElem, 400, 300, dims.width, dims.height);
+      posX = pos.x;
+      posY = pos.y;
+    }
+
     const attribute = {
       id: this.generateId('attr'),
       name: formattedName,
@@ -111,8 +181,8 @@ class DiagramModel {
       isPartialKey: Boolean(opts.isPartialKey),
       isMultivalued: Boolean(opts.isMultivalued),
       isDerived: Boolean(opts.isDerived),
-      x,
-      y,
+      x: posX,
+      y: posY,
       width: dims.width,
       height: dims.height
     };
@@ -129,7 +199,7 @@ class DiagramModel {
   }
 
   // --- RELACIONAMENTOS ---
-  addRelationship(name, x = 400, y = 200, isWeak = false) {
+  addRelationship(name, x = 0, y = 0, isWeak = false) {
     const formattedName = name.trim().toUpperCase();
     let existing = this.relationships.find(r => r.name === formattedName);
     if (existing) {
@@ -139,13 +209,21 @@ class DiagramModel {
     }
 
     const dims = this.calculateDimensions('relationship', formattedName);
+    let posX = x;
+    let posY = y;
+    if (!posX && !posY) {
+      const pos = this.findPositionNear(null, 450, 300, dims.width, dims.height);
+      posX = pos.x;
+      posY = pos.y;
+    }
+
     const relationship = {
       id: this.generateId('rel'),
       name: formattedName,
       type: 'relationship',
       isWeak: Boolean(isWeak),
-      x,
-      y,
+      x: posX,
+      y: posY,
       width: dims.width,
       height: dims.height
     };
@@ -207,6 +285,7 @@ class DiagramModel {
     const existing = this.connections.find(
       c => (c.sourceId === sourceId && c.targetId === targetId) &&
            (!opts.roleSource || c.roleSource === opts.roleSource) &&
+           (!opts.roleTarget || c.roleTarget === opts.roleTarget) &&
            (!opts.forceNew)
     );
 
@@ -709,7 +788,8 @@ class DiagramModel {
             if (targetId) {
               this.addConnection(rel.id, targetId, '', part.cardinality || '', {
                 isTotalTarget: Boolean(part.total),
-                roleTarget: part.role || ''
+                roleTarget: part.role || '',
+                forceNew: true
               });
             }
           });

@@ -158,15 +158,17 @@
 /* Entity Shape (Rectangle) */
 .entity-rect {
   fill: var(--entity-fill);
-  stroke: var(--entity-stroke);
-  stroke-width: 2.5;
+  stroke: #00f0ff !important;
+  stroke-width: 2.5px !important;
+  stroke-dasharray: none !important;
   rx: 6px;
 }
 
 .entity-rect.inner {
   fill: transparent;
-  stroke: var(--entity-stroke);
-  stroke-width: 1.5;
+  stroke: #00f0ff !important;
+  stroke-width: 1.5px !important;
+  stroke-dasharray: none !important;
   rx: 3px;
 }
 
@@ -274,9 +276,9 @@
 
 .role-text {
   font-family: var(--font-sans);
-  font-size: 10px;
-  font-weight: 500;
-  fill: #94a3b8;
+  font-size: 12px;
+  font-weight: 700;
+  fill: #f1f5f9;
   text-anchor: middle;
 }
 
@@ -285,6 +287,7 @@
   stroke: var(--connection-stroke);
   stroke-width: 2;
   stroke-linecap: round;
+  stroke-dasharray: none !important;
   cursor: pointer;
   pointer-events: stroke;
   transition: stroke var(--transition-fast);
@@ -296,15 +299,15 @@
 }
 
 .connection-line.total {
-  /* MantÃ©m a espessura original para formar par perfeito com a linha paralela */
+  /* Mantém a espessura original para formar par perfeito com a linha paralela */
   stroke-width: 2; 
-  stroke-dasharray: none;
+  stroke-dasharray: none !important;
 }
 
 .connection-line.total-side {
   stroke: var(--text);
   stroke-width: 2;
-  stroke-dasharray: none;
+  stroke-dasharray: none !important;
 }
 
 .connection-line:hover {
@@ -315,7 +318,8 @@
 .connection-line.selected {
   stroke: var(--accent);
   stroke-width: 3;
-  stroke-dasharray: 6 3;
+  stroke-dasharray: none !important;
+  filter: drop-shadow(0 0 8px #00f0ff);
 }
 
 /* Cardinality Label Badges */
@@ -669,12 +673,17 @@
 .val-item.success { border-left: 4px solid var(--success); color: #6ee7b7; }
 
 /* --- VISUAL VALIDATION FEEDBACK --- */
-g.invalid rect,
-g.invalid ellipse,
-g.invalid polygon,
-g.invalid circle {
+g.invalid .attribute-ellipse,
+g.invalid .relationship-polygon,
+g.invalid .specialization-circle {
   stroke: var(--danger) !important;
   stroke-width: 3px !important;
-  stroke-dasharray: 6 3 !important;
   filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.6));
+}
+
+g.invalid .entity-rect {
+  stroke: #00f0ff !important;
+  stroke-width: 2.5px !important;
+  stroke-dasharray: none !important;
+  filter: drop-shadow(0 0 8px rgba(0, 240, 255, 0.6));
 }

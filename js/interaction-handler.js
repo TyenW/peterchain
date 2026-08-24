@@ -220,7 +220,8 @@ class InteractionHandler {
                 // Padronização: ao conectar Entidade <-> Relacionamento, sempre gravar como Entidade -> Relacionamento
                 if (src.type === 'entity' && tgt.type === 'relationship') {
                   const isTotalSource = Boolean(tgt.isWeak && src.isWeak);
-                  this.model.addConnection(src.id, tgt.id, 'N', '', { isTotalSource });
+                  const connExists = this.model.connections.some(c => (c.sourceId === src.id && c.targetId === tgt.id) || (c.sourceId === tgt.id && c.targetId === src.id));
+                  this.model.addConnection(src.id, tgt.id, 'N', '', { isTotalSource, forceNew: connExists });
 
                   // Modo n-ário: mantém o relacionamento como âncora para conectar outras entidades
                   this.connectSourceId = tgt.id;
@@ -230,7 +231,8 @@ class InteractionHandler {
 
                 if (src.type === 'relationship' && tgt.type === 'entity') {
                   const isTotalSource = Boolean(src.isWeak && tgt.isWeak);
-                  this.model.addConnection(tgt.id, src.id, 'N', '', { isTotalSource });
+                  const connExists = this.model.connections.some(c => (c.sourceId === src.id && c.targetId === tgt.id) || (c.sourceId === tgt.id && c.targetId === src.id));
+                  this.model.addConnection(tgt.id, src.id, 'N', '', { isTotalSource, forceNew: connExists });
 
                   // Modo n-ário: mantém o relacionamento como âncora para conectar outras entidades
                   this.connectSourceId = src.id;
@@ -352,6 +354,7 @@ class InteractionHandler {
       });
 
       this.renderer.render();
+      this.model.notify();
       this.renderAlignmentGuides(alignedX, alignedY, anchor.element);
       return;
     }

@@ -57,22 +57,24 @@ class DERValidator {
       }
     });
 
-    // --- REGRA 2: Relacionamentos sem 2 entidades conectadas ---
+    // --- REGRA 2: Relacionamentos sem 2 entidades/participações conectadas ---
     this.model.relationships.forEach(rel => {
       const relConns = this.model.connections.filter(c => c.sourceId === rel.id || c.targetId === rel.id);
       const connectedEntityIds = new Set();
+      let entityConnCount = 0;
 
       relConns.forEach(c => {
         const otherId = c.sourceId === rel.id ? c.targetId : c.sourceId;
         if (this.model.entities.some(e => e.id === otherId)) {
           connectedEntityIds.add(otherId);
+          entityConnCount++;
         }
       });
 
-      if (connectedEntityIds.size < 2) {
+      if (entityConnCount < 2) {
         issues.push({
           type: 'error',
-          message: `O relacionamento [${rel.name}] precisa estar conectado a pelo menos duas entidades. Na notação de Chen, relacionamentos associam duas ou mais entidades.`,
+          message: `O relacionamento [${rel.name}] precisa estar conectado a pelo menos duas entidades (ou possuir duas participações em auto-relacionamento).`,
           elementId: rel.id
         });
       }

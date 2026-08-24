@@ -78,6 +78,16 @@ document.addEventListener('DOMContentLoaded', () => {
     isTypingJSON = false;
     syncJSONToModel();
   });
+  nlpInput.addEventListener('input', () => {
+    try {
+      if (nlpInput.value.trim()) {
+        const parsedData = JSON.parse(nlpInput.value);
+        model.fromJSON(parsedData);
+      }
+    } catch (e) {
+      // Ignora erros de sintaxe incompletos enquanto o usuário digita
+    }
+  });
   nlpInput.addEventListener('keydown', (e) => {
     if (e.ctrlKey && e.key === 'Enter') {
       syncJSONToModel();

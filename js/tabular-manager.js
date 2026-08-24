@@ -252,8 +252,7 @@ class TabularManager {
       const name = results[0]?.trim();
       if (!name) return;
       const isWeak = results[1];
-      this.model.addEntity(name, 100, 100, isWeak);
-      this.model.autoLayout();
+      this.model.addEntity(name, 0, 0, isWeak);
     });
   }
 
