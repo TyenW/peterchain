@@ -281,6 +281,19 @@ class DiagramModel {
     const nextTotalSource = opts.isTotalSource !== undefined ? Boolean(opts.isTotalSource) : (hasLegacyTotal ? Boolean(opts.isTotal) : undefined);
     const nextTotalTarget = opts.isTotalTarget !== undefined ? Boolean(opts.isTotalTarget) : (hasLegacyTotal ? Boolean(opts.isTotal) : undefined);
 
+    // Evitar criar mais de 2 pernas de conexão para o mesmo par entidade <-> auto-relacionamento
+    const pairConns = this.connections.filter(
+      c => (c.sourceId === sourceId && c.targetId === targetId) ||
+           (c.sourceId === targetId && c.targetId === sourceId)
+    );
+    if (pairConns.length >= 2) {
+      const targetConn = pairConns.find(c => (!opts.roleTarget || c.roleTarget === opts.roleTarget)) || pairConns[1];
+      if (cardinalityTarget) targetConn.cardinalityTarget = cardinalityTarget;
+      if (opts.roleTarget) targetConn.roleTarget = opts.roleTarget;
+      this.notify();
+      return targetConn;
+    }
+
     // Reaproveita conexão existente apenas se for para a mesma perna/papel e não exigir forceNew
     const existing = this.connections.find(
       c => (c.sourceId === sourceId && c.targetId === targetId) &&

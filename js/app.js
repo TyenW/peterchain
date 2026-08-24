@@ -188,11 +188,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  document.getElementById('tool-select').addEventListener('click', () => handler.setTool('select'));
-  document.getElementById('tool-entity').addEventListener('click', () => handler.setTool('entity'));
-  document.getElementById('tool-attribute').addEventListener('click', () => handler.setTool('attribute'));
-  document.getElementById('tool-relationship').addEventListener('click', () => handler.setTool('relationship'));
-  document.getElementById('tool-connect').addEventListener('click', () => handler.setTool('connect'));
+  const btnSelect = document.getElementById('tool-select');
+  if (btnSelect) btnSelect.addEventListener('click', () => handler.setTool('select'));
+  const btnEntity = document.getElementById('tool-entity');
+  if (btnEntity) btnEntity.addEventListener('click', () => handler.setTool('entity'));
+  const btnAttr = document.getElementById('tool-attribute');
+  if (btnAttr) btnAttr.addEventListener('click', () => handler.setTool('attribute'));
+  const btnRel = document.getElementById('tool-relationship');
+  if (btnRel) btnRel.addEventListener('click', () => handler.setTool('relationship'));
+  const btnConnect = document.getElementById('tool-connect');
+  if (btnConnect) btnConnect.addEventListener('click', () => handler.setTool('connect'));
   document.getElementById('tool-delete').addEventListener('click', () => {
     if (controller.selectedElementId) {
       model.removeElement(controller.selectedElementId);

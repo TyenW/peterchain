@@ -540,12 +540,6 @@ class InteractionHandler {
       }
     } else if (e.key === 'v' || e.key === 'V') {
       this.setTool('select');
-    } else if (e.key === 'e' || e.key === 'E') {
-      this.setTool('entity');
-    } else if (e.key === 'a' || e.key === 'A') {
-      this.setTool('attribute');
-    } else if (e.key === 'r' || e.key === 'R') {
-      this.setTool('relationship');
     } else if (e.key === 'c' || e.key === 'C') {
       this.setTool('connect');
     }

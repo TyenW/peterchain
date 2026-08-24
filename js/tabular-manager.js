@@ -252,7 +252,49 @@ class TabularManager {
       const name = results[0]?.trim();
       if (!name) return;
       const isWeak = results[1];
-      this.model.addEntity(name, 0, 0, isWeak);
+      const res = this.model.addEntity(name, 0, 0, isWeak);
+      const ent = res.element || res;
+      if (ent) {
+        this.render();
+        this.openPropertyInspector(ent.id);
+      }
+    });
+  }
+
+  addAttribute(parentId = null) {
+    this.openModal('Criar Novo Atributo', [
+      { type: 'text', label: 'Nome do Atributo', placeholder: 'Ex: Nome, CPF, Data' },
+      { type: 'checkbox', label: '', text: 'Chave Primária?' },
+      { type: 'checkbox', label: '', text: 'Multivalorado?' },
+      { type: 'checkbox', label: '', text: 'Derivado?' }
+    ], (results) => {
+      const name = results[0]?.trim();
+      if (!name) return;
+      const isKey = Boolean(results[1]);
+      const isMultivalued = Boolean(results[2]);
+      const isDerived = Boolean(results[3]);
+      const attr = this.model.addAttribute(name, parentId, { isKey, isMultivalued, isDerived }, 0, 0);
+      if (attr) {
+        this.render();
+        this.openPropertyInspector(attr.id);
+      }
+    });
+  }
+
+  addRelationship() {
+    this.openModal('Criar Novo Relacionamento', [
+      { type: 'text', label: 'Nome do Relacionamento', placeholder: 'Ex: SUPERVISAO, PERTENCE' },
+      { type: 'checkbox', label: '', text: 'Relacionamento Identificador / Fraco (Losango Duplo)?' }
+    ], (results) => {
+      const name = results[0]?.trim();
+      if (!name) return;
+      const isWeak = Boolean(results[1]);
+      const res = this.model.addRelationship(name, 0, 0, isWeak);
+      const rel = res.element || res;
+      if (rel) {
+        this.render();
+        this.openPropertyInspector(rel.id);
+      }
     });
   }
 
