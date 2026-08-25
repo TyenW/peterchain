@@ -697,9 +697,11 @@ class DiagramModel {
   fromJSON(data) {
     if (!data) return;
 
-    // Auto-detect format: if first entity lacks an ID, or if 'connections' is missing but relationships have 'participants', it's the external DSL format
-    const isExternalFormat = (data.entities && data.entities.length > 0 && !data.entities[0].id) ||
-                             (data.relationships && data.relationships.length > 0 && data.relationships[0].participants);
+    // Auto-detect format: formato externo usa 'participants' nos relacionamentos e não possui 'connections'
+    const isExternalFormat = Boolean(
+      (data.relationships && data.relationships.some(r => r.participants)) ||
+      (!data.connections && data.entities && data.entities.some(e => !e.id))
+    );
 
     this._suppressNotify = true;
     try {
@@ -709,7 +711,20 @@ class DiagramModel {
         this.entities = data.entities || [];
         this.attributes = data.attributes || [];
         this.relationships = data.relationships || [];
-        this.specializations = data.specializations || [];
+        this.specializations = (data.specializations || []).map(spec => ({
+          id: spec.id || this.generateId('spec'),
+          name: spec.name || (spec.specType || 'd').toUpperCase(),
+          type: 'specialization',
+          specType: spec.specType || 'd',
+          isTotal: Boolean(spec.isTotal),
+          definingAttribute: (spec.definingAttribute || '').trim(),
+          superEntityId: spec.superEntityId,
+          subEntityIds: spec.subEntityIds || [],
+          x: typeof spec.x === 'number' ? spec.x : 300,
+          y: typeof spec.y === 'number' ? spec.y : 300,
+          width: spec.width || 36,
+          height: spec.height || 36
+        }));
         this.connections = (data.connections || []).map(conn => {
           const totalSource = conn.isTotalSource !== undefined ? Boolean(conn.isTotalSource) : Boolean(conn.isTotal);
           const totalTarget = conn.isTotalTarget !== undefined ? Boolean(conn.isTotalTarget) : Boolean(conn.isTotal);
@@ -817,7 +832,7 @@ class DiagramModel {
         const subIds = (specData.subEntities || []).map(name => entityNameMap.get(name)).filter(Boolean);
 
         if (superId && subIds.length > 0) {
-          this.addSpecialization(specData.type || 'd', superId, subIds, undefined, undefined, Boolean(specData.total));
+          this.addSpecialization(specData.type || 'd', superId, subIds, undefined, undefined, Boolean(specData.total), specData.definingAttribute || '');
         }
       });
     }

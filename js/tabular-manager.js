@@ -14,8 +14,9 @@ class TabularManager {
     const entStr = this.model.entities.map(e => `${e.id}:${e.name}:${e.isWeak}`).join('|');
     const attrStr = this.model.attributes.map(a => `${a.id}:${a.name}:${a.parentId}:${a.isKey}:${a.isPartialKey}:${a.isMultivalued}:${a.isDerived}`).join('|');
     const relStr = this.model.relationships.map(r => `${r.id}:${r.name}:${r.isWeak}`).join('|');
+    const specStr = (this.model.specializations || []).map(s => `${s.id}:${s.specType}:${s.superEntityId}:${(s.subEntityIds||[]).join(',')}:${s.isTotal}:${s.definingAttribute}`).join('|');
     const connStr = this.model.connections.map(c => `${c.id}:${c.sourceId}:${c.targetId}:${c.cardinalitySource}:${c.cardinalityTarget}`).join('|');
-    return `${entStr}#${attrStr}#${relStr}#${connStr}`;
+    return `${entStr}#${attrStr}#${relStr}#${specStr}#${connStr}`;
   }
 
   render(force = false) {
@@ -145,7 +146,43 @@ class TabularManager {
     html += `
         </div>
       </div>
+
+      <div class="tabular-divider"></div>
+
+      <div class="tabular-section">
+        <div class="tabular-header">
+          <h3>Especializações (EER)</h3>
+          <button class="btn btn-sm btn-primary" onclick="window.tabularManager.addSpecialization()">+ Especialização</button>
+        </div>
+        <div class="tabular-list">
     `;
+
+    if (!this.model.specializations || this.model.specializations.length === 0) {
+      html += `<div class="tabular-empty">Nenhuma especialização cadastrada.</div>`;
+    } else {
+      this.model.specializations.forEach(spec => {
+        const superEnt = this.model.entities.find(e => e.id === spec.superEntityId);
+        const subNames = (spec.subEntityIds || []).map(id => {
+          const e = this.model.entities.find(ent => ent.id === id);
+          return e ? e.name : '?';
+        }).join(', ');
+
+        const typeLabel = spec.specType === 'd' ? 'Disjunta (d)' : (spec.specType === 'o' ? 'Sobreposta (o)' : 'União (u)');
+
+        html += `
+          <div class="tabular-item rel-item">
+            <div class="item-info">
+              <span class="item-name" title="${typeLabel}">${typeLabel} ${spec.isTotal ? '[Total]' : ''}</span>
+              <div class="rel-conn-desc">${superEnt ? superEnt.name : '?'} &rarr; [ ${subNames || 'sem subclasses'} ]</div>
+            </div>
+            <div class="item-actions">
+              <button class="btn-icon btn-sm" onclick="window.tabularManager.editSpecialization('${spec.id}')" title="Editar">&#9998;</button>
+              <button class="btn-icon btn-sm danger" onclick="window.tabularManager.deleteElement('${spec.id}')" title="Excluir">&times;</button>
+            </div>
+          </div>
+        `;
+      });
+    }
 
     this.container.innerHTML = html;
 
@@ -315,6 +352,47 @@ class TabularManager {
   }
 
   editRelationship(id) {
+    this.openPropertyInspector(id);
+  }
+
+  addSpecialization() {
+    const entOptions = this.model.entities.map(e => ({ value: e.id, text: e.name }));
+    if (entOptions.length < 2) {
+      alert('É necessário ter pelo menos 2 entidades no modelo para criar uma especialização.');
+      return;
+    }
+
+    this.openModal('Criar Herança / Especialização (EER)', [
+      {
+        type: 'select',
+        label: 'Tipo de Herança',
+        options: [
+          { value: 'd', text: 'd — Disjunta (Mutuamente Exclusiva)' },
+          { value: 'o', text: 'o — Sobreposta (Overlapping / Overload)' },
+          { value: 'u', text: 'u — União / Categoria' }
+        ]
+      },
+      { type: 'select', label: 'Superclasse (Entidade Pai)', options: entOptions },
+      { type: 'checkbox', label: '', text: 'Especialização Total (Linha Dupla)?' },
+      { type: 'text', label: 'Atributo Definidor (Opcional)', placeholder: 'Ex: TipoContrato' }
+    ], (results) => {
+      const type = results[0] || 'd';
+      const superId = results[1];
+      const isTotal = Boolean(results[2]);
+      const definingAttr = (results[3] || '').trim();
+
+      if (!superId) return;
+
+      const candidateSubs = this.model.entities.filter(e => e.id !== superId).map(e => e.id);
+      const spec = this.model.addSpecialization(type, superId, candidateSubs.slice(0, 2), 0, 0, isTotal, definingAttr);
+      if (spec) {
+        this.render();
+        this.openPropertyInspector(spec.id);
+      }
+    });
+  }
+
+  editSpecialization(id) {
     this.openPropertyInspector(id);
   }
 

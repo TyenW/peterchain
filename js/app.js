@@ -71,27 +71,26 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Atualizar JSON automaticamente quando o modelo mudar, a menos que o usuário esteja digitando ativamente no JSON
+  function syncJSONToModelSilently() {
+    let text = nlpInput.value;
+    if (!text.trim()) return;
+
+    try {
+      const parsedData = JSON.parse(text);
+      model.fromJSON(parsedData);
+      renderTerminalLog([{ msg: 'JSON sincronizado com sucesso.', type: 'success', timestamp: new Date().toLocaleTimeString() }]);
+    } catch (e) {
+      // Ignora erros sintáticos intermediários enquanto o usuário digita
+    }
+  }
+
   let isTypingJSON = false;
   nlpInput.addEventListener('focus', () => isTypingJSON = true);
-  nlpInput.addEventListener('blur', () => {
-    isTypingJSON = false;
-    syncJSONToModel();
-  });
-  nlpInput.addEventListener('input', () => {
-    try {
-      if (nlpInput.value.trim()) {
-        const parsedData = JSON.parse(nlpInput.value);
-        model.fromJSON(parsedData);
-      }
-    } catch (e) {
-      // Ignora erros de sintaxe incompletos enquanto o usuário digita
-    }
-  });
-  nlpInput.addEventListener('keydown', (e) => {
-    if (e.ctrlKey && e.key === 'Enter') {
-      syncJSONToModel();
-    }
+  nlpInput.addEventListener('blur', () => isTypingJSON = false);
+
+  nlpInput.addEventListener('input', () => syncJSONToModelSilently());
+  nlpInput.addEventListener('paste', () => {
+    setTimeout(() => syncJSONToModelSilently(), 20);
   });
 
   model.subscribe(() => {
@@ -326,36 +325,125 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Modais (Presets & Meus Diagramas)
+  // Função Global de Carregamento de Modelos / Presets
+  window.loadPreset = function(key) {
+    const preset = DERPresets[key];
+    if (!preset) return;
+
+    const titleInput = document.getElementById('project-title-input');
+    if (titleInput && preset.title) {
+      titleInput.value = preset.title;
+    }
+
+    if (preset.data) {
+      model.fromJSON(preset.data);
+      nlpInput.value = JSON.stringify(model.toJSON(), null, 2);
+    } else if (preset.text) {
+      nlpInput.value = preset.text;
+      try {
+        const parsedData = JSON.parse(preset.text);
+        model.fromJSON(parsedData);
+      } catch (e) {}
+    }
+
+    tabularManager.render();
+    setTimeout(() => controller.zoomToFit(), 100);
+
+    const modalPresets = document.getElementById('modal-presets');
+    if (modalPresets) modalPresets.classList.add('hidden');
+
+    if (window.menuManager) {
+      window.menuManager.closeAllMenus();
+    }
+  };
+
+  // Modais (Presets / Galeria de Modelos)
   const modalPresets = document.getElementById('modal-presets');
   const btnPresetMenu = document.getElementById('btn-preset-menu');
-  btnPresetMenu.addEventListener('click', () => modalPresets.classList.remove('hidden'));
-  document.getElementById('btn-close-modal-presets').addEventListener('click', () => modalPresets.classList.add('hidden'));
-
-  document.querySelectorAll('.preset-card').forEach(card => {
-    card.addEventListener('click', () => {
-      const key = card.getAttribute('data-preset');
-      if (DERPresets[key]) {
-        projectTitleInput.value = DERPresets[key].title;
-        nlpInput.value = DERPresets[key].text;
-        executeNLP(false);
-        modalPresets.classList.add('hidden');
-      }
+  if (btnPresetMenu && modalPresets) {
+    btnPresetMenu.addEventListener('click', () => {
+      if (typeof renderPresetGallery === 'function') renderPresetGallery();
+      modalPresets.classList.remove('hidden');
     });
-  });
+  }
+  const btnClosePresets = document.getElementById('btn-close-modal-presets');
+  if (btnClosePresets && modalPresets) {
+    btnClosePresets.addEventListener('click', () => modalPresets.classList.add('hidden'));
+  }
 
-  // Modal de Guia de Comandos Suportados
+  // Pesquisa na Galeria de Modelos
+  const presetSearchInput = document.getElementById('preset-search-input');
+  if (presetSearchInput) {
+    presetSearchInput.addEventListener('input', (e) => {
+      if (typeof renderPresetGallery === 'function') renderPresetGallery(e.target.value);
+    });
+  }
+
+  // Modal de Guia de Comandos & Documentação JSON
   const modalCommands = document.getElementById('modal-commands');
   const btnCmdHelp = document.getElementById('btn-cmd-help');
   const btnCmdHelpNav = document.getElementById('btn-cmd-help-nav');
-  
-  if (btnCmdHelp) {
-    btnCmdHelp.addEventListener('click', () => modalCommands.classList.remove('hidden'));
+  const btnJsonDocNav = document.getElementById('btn-json-doc-nav');
+  const tabHelpJsonBtn = document.getElementById('tab-help-json-btn');
+  const tabHelpCmdBtn = document.getElementById('tab-help-cmd-btn');
+  const helpPanelJson = document.getElementById('help-panel-json');
+  const helpPanelCmd = document.getElementById('help-panel-cmd');
+
+  function showHelpTab(tabName) {
+    if (tabName === 'json') {
+      if (helpPanelJson) helpPanelJson.classList.remove('hidden');
+      if (helpPanelCmd) helpPanelCmd.classList.add('hidden');
+      if (tabHelpJsonBtn) {
+        tabHelpJsonBtn.classList.add('active');
+        tabHelpJsonBtn.style.color = 'var(--accent-light)';
+        tabHelpJsonBtn.style.borderBottomColor = 'var(--primary)';
+      }
+      if (tabHelpCmdBtn) {
+        tabHelpCmdBtn.classList.remove('active');
+        tabHelpCmdBtn.style.color = 'var(--text-muted)';
+        tabHelpCmdBtn.style.borderBottomColor = 'transparent';
+      }
+    } else {
+      if (helpPanelCmd) helpPanelCmd.classList.remove('hidden');
+      if (helpPanelJson) helpPanelJson.classList.add('hidden');
+      if (tabHelpCmdBtn) {
+        tabHelpCmdBtn.classList.add('active');
+        tabHelpCmdBtn.style.color = 'var(--accent-light)';
+        tabHelpCmdBtn.style.borderBottomColor = 'var(--primary)';
+      }
+      if (tabHelpJsonBtn) {
+        tabHelpJsonBtn.classList.remove('active');
+        tabHelpJsonBtn.style.color = 'var(--text-muted)';
+        tabHelpJsonBtn.style.borderBottomColor = 'transparent';
+      }
+    }
   }
-  if (btnCmdHelpNav) {
-    btnCmdHelpNav.addEventListener('click', () => modalCommands.classList.remove('hidden'));
+
+  if (tabHelpJsonBtn) tabHelpJsonBtn.addEventListener('click', () => showHelpTab('json'));
+  if (tabHelpCmdBtn) tabHelpCmdBtn.addEventListener('click', () => showHelpTab('cmd'));
+
+  if (btnJsonDocNav && modalCommands) {
+    btnJsonDocNav.addEventListener('click', () => {
+      showHelpTab('json');
+      modalCommands.classList.remove('hidden');
+    });
   }
-  document.getElementById('btn-close-modal-commands').addEventListener('click', () => modalCommands.classList.add('hidden'));
+  if (btnCmdHelpNav && modalCommands) {
+    btnCmdHelpNav.addEventListener('click', () => {
+      showHelpTab('cmd');
+      modalCommands.classList.remove('hidden');
+    });
+  }
+  if (btnCmdHelp && modalCommands) {
+    btnCmdHelp.addEventListener('click', () => {
+      showHelpTab('json');
+      modalCommands.classList.remove('hidden');
+    });
+  }
+  const btnCloseModalCmds = document.getElementById('btn-close-modal-commands');
+  if (btnCloseModalCmds && modalCommands) {
+    btnCloseModalCmds.addEventListener('click', () => modalCommands.classList.add('hidden'));
+  }
 
   // Copiar e Carregar trechos do Guia de Comandos
   document.querySelectorAll('.btn-copy-code').forEach(btn => {

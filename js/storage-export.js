@@ -104,6 +104,8 @@ class StorageExportManager {
       .cardinality-bg { fill: #ffffff; stroke: #000000; stroke-width: 1px; rx: 3px; }
       .cardinality-badge { font-family: 'Times New Roman', Times, serif; font-size: 13px; font-weight: 700; fill: #000000; text-anchor: middle; dominant-baseline: central; }
       .role-text { font-family: 'Times New Roman', Times, serif; font-size: 12px; font-weight: 600; fill: #000000; text-anchor: middle; }
+      .subset-symbol { stroke: #000000; stroke-width: 2px; stroke-linecap: round; fill: none; }
+      .defining-attribute-label { font-family: 'Times New Roman', Times, serif; font-size: 11px; font-style: italic; fill: #000000; }
     `;
   }
 
@@ -145,6 +147,8 @@ class StorageExportManager {
       .cardinality-bg { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1px; rx: 4px; }
       .cardinality-badge { font-family: 'Inter', system-ui, sans-serif; font-size: 12px; font-weight: 700; fill: #0f172a; text-anchor: middle; dominant-baseline: central; }
       .role-text { font-family: 'Inter', system-ui, sans-serif; font-size: 12px; font-weight: 600; fill: #475569; text-anchor: middle; }
+      .subset-symbol { stroke: #9333ea; stroke-width: 2.2px; stroke-linecap: round; fill: none; }
+      .defining-attribute-label { font-family: 'Inter', system-ui, sans-serif; font-size: 11px; font-style: italic; fill: #7e22ce; }
     `;
   }
 
@@ -264,8 +268,8 @@ class StorageExportManager {
 
       // Linha 3: Cardinalidades & Notação
       { type: 'cardinality', lx: 48, ly: 113, label: 'Cardinalidade (ex: 1, N, 0..N)' },
-      { type: 'specialization', cx: 250, cy: 110, lx: 263, ly: 113, label: 'Especialização (d/o)' },
-      { type: 'notation-note', x: 410, y: 113 }
+      { type: 'specialization', cx: 235, cy: 110, lx: 275, ly: 113, label: 'Especialização (d/o) & Categoria (u) [ ⊂ Subconjunto ]' },
+      { type: 'notation-note', x: 490, y: 113 }
     ];
 
     items.forEach(it => {
@@ -380,11 +384,26 @@ class StorageExportManager {
 
         const st = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         st.setAttribute('x', it.cx); st.setAttribute('y', it.cy);
-        st.setAttribute('font-family', 'Inter, system-ui, sans-serif'); st.setAttribute('font-size', '9');
+        st.setAttribute('font-family', 'Inter, system-ui, sans-serif'); st.setAttribute('font-size', '8');
         st.setAttribute('font-weight', 'bold'); st.setAttribute('fill', isColored ? '#6b21a8' : '#000000');
         st.setAttribute('text-anchor', 'middle'); st.setAttribute('dominant-baseline', 'central');
         st.textContent = 'd';
         g.appendChild(st);
+
+        const l = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        l.setAttribute('x1', it.cx + 7); l.setAttribute('y1', it.cy);
+        l.setAttribute('x2', it.cx + 32); l.setAttribute('y2', it.cy);
+        l.setAttribute('stroke', isColored ? '#9333ea' : '#000000'); l.setAttribute('stroke-width', '1.5');
+        g.appendChild(l);
+
+        const subPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        const r = 5;
+        const subD = `M ${it.cx + 22} ${it.cy - r} A ${r} ${r} 0 0 0 ${it.cx + 22} ${it.cy + r}`;
+        subPath.setAttribute('d', subD);
+        subPath.setAttribute('stroke', isColored ? '#9333ea' : '#000000');
+        subPath.setAttribute('stroke-width', '1.8');
+        subPath.setAttribute('fill', 'none');
+        g.appendChild(subPath);
       } else if (it.type === 'notation-note') {
         const note = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         note.setAttribute('x', it.x); note.setAttribute('y', it.y);
@@ -392,7 +411,7 @@ class StorageExportManager {
         note.setAttribute('font-size', '10');
         note.setAttribute('font-style', 'italic');
         note.setAttribute('fill', isColored ? '#64748b' : '#3f3f46');
-        note.textContent = '* Regra de Notação: Sublinhado Sólido = Chave Primária | Sublinhado Pontilhado = Chave Parcial (Discriminador)';
+        note.textContent = '* Notação EER: d = Disjunta | o = Sobreposta | u = Categoria/União | ⊂ = Relação de Subconjunto';
         g.appendChild(note);
       }
 

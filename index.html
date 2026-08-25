@@ -105,30 +105,57 @@
   
       <!-- Modelos -->
       <div class="nav-menu">
-        <button class="nav-btn" aria-haspopup="true" aria-expanded="false">Modelos</button>
+        <button class="nav-btn" aria-haspopup="true" aria-expanded="false">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+          Modelos
+        </button>
         <ul class="dropdown-content">
           <li>
+            <button onclick="window.loadPreset('CloudManager - Versão Simplificada')">
+              <span>☁️ CloudManager - Versão Simplificada.json</span>
+            </button>
+          </li>
+          <li>
+            <button onclick="window.loadPreset('eer_modelo_completo')">
+              <span>🧬 eer_modelo_completo.json</span>
+            </button>
+          </li>
+          <li>
+            <button onclick="window.loadPreset('sam_modelo')">
+              <span>🎓 sam_modelo.json</span>
+            </button>
+          </li>
+          <li style="border-top: 1px solid var(--border-color); margin-top: 4px; padding-top: 4px;">
             <button id="btn-preset-menu">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h7"/></svg>
-              <span>Carregar Exemplo...</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+              <span>🖼️ Abrir Galeria de Modelos...</span>
             </button>
           </li>
         </ul>
       </div>
-  
-      <!-- Ajuda -->
+
+      <!-- Ajuda & Docs -->
       <div class="nav-menu">
-        <button class="nav-btn" aria-haspopup="true" aria-expanded="false">Ajuda</button>
+        <button class="nav-btn" aria-haspopup="true" aria-expanded="false">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          Ajuda & Docs
+        </button>
         <ul class="dropdown-content">
+          <li>
+            <button id="btn-json-doc-nav">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              <span>📘 Documentação da Notação JSON</span>
+            </button>
+          </li>
           <li>
             <button id="btn-cmd-help-nav">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-              <span>Guia de Comandos</span>
+              <span>📖 Guia de Comandos & Sintaxe</span>
             </button>
           </li>
         </ul>
       </div>
-  
+
       <div class="project-title-container" style="margin-left: auto;">
         <input type="text" id="project-title-input" value="Sistema Acadêmico" placeholder="Nome do Projeto" title="Clique para renomear">
       </div>
@@ -172,13 +199,6 @@
   &#x22;relationships&#x22;: [],
   &#x22;connections&#x22;: []
 }"></textarea>
-          </div>
-
-          <div class="nlp-controls">
-            <button id="btn-generate-diagram" class="btn btn-success btn-large" style="width: 100%;">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              Sincronizar JSON para Diagrama
-            </button>
           </div>
 
           <div class="terminal-log-wrapper">
@@ -384,24 +404,27 @@
 
   <!-- Modals -->
 
-  <!-- Modal: Presets -->
+  <!-- Modal: Presets / Galeria de Modelos -->
   <div class="modal-overlay hidden" id="modal-presets">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3>Exemplos de Códigos ER / Pseudo-Comandos</h3>
+    <div class="modal-card" style="max-width: 880px; max-height: 88vh; overflow-y: auto;">
+      <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center;">
+        <h3 style="display:flex; align-items:center; gap:8px;">
+          <span>🖼️</span> Galeria de Modelos DER / EER
+        </h3>
         <button class="modal-close" id="btn-close-modal-presets">&times;</button>
       </div>
-      <div class="modal-body">
-        <p style="color:var(--text-muted); margin-bottom:12px;">Selecione um dos modelos de código abaixo para carregar no editor:</p>
-        <div class="preset-grid">
-          <div class="preset-card" data-preset="eer">
-            <h4>1. Modelo EER Estendido Completo</h4>
-            <p>Entidades Fracas, Atributos Multivalorados, Derivados, Chaves Parciais e Herança (d, o, u).</p>
-          </div>
-          <div class="preset-card" data-preset="academico">
-            <h4>2. Sistema Acadêmico Completo</h4>
-            <p>Alunos, Cursos, Professores e Disciplinas com composições e papéis de relacionamento.</p>
-          </div>
+      <div class="modal-body" style="padding: 20px;">
+        <p style="color:var(--text-muted); font-size: 13px; margin-bottom: 14px;">
+          Selecione um dos modelos conceituais abaixo para carregar instantaneamente no canvas e no editor:
+        </p>
+
+        <!-- Barra de Busca de Modelos -->
+        <div style="margin-bottom: 18px;">
+          <input type="text" id="preset-search-input" placeholder="🔍 Buscar modelos por nome, palavra-chave ou conceito (ex: EER, d/o/u, SAM, Nuvem, Fraca, Papéis)..." style="width: 100%; padding: 10px 14px; font-size: 13px; border-radius: 8px; background: rgba(5,8,17,0.7); border: 1px solid var(--border-color); color: var(--text-main);">
+        </div>
+
+        <div id="preset-grid-container" class="preset-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px;">
+          <!-- Injetado dinamicamente pelo presets.js -->
         </div>
       </div>
     </div>
@@ -423,13 +446,227 @@
   </div>
 
   <!-- Modal: Guia Completo de Comandos e Sintaxe ER / EER -->
+    <!-- Modal: Guia Completo de Comandos e Documentação JSON -->
   <div class="modal-overlay hidden" id="modal-commands">
-    <div class="modal-card" style="max-width: 860px; max-height: 88vh; overflow-y: auto;">
+    <div class="modal-card" style="max-width: 880px; max-height: 88vh; overflow-y: auto;">
       <div class="modal-header">
-        <h3>Guia Definitivo de Comandos e Sintaxe — DER Builder</h3>
+        <h3 id="modal-help-title">Ajuda & Documentação — DER / EER Builder</h3>
         <button class="modal-close" id="btn-close-modal-commands">&times;</button>
       </div>
-      <div class="modal-body" style="display:flex; flex-direction:column; gap:16px; font-size:13px; line-height:1.6; color:var(--text-muted);">
+
+      <!-- Tab Header para Ajuda -->
+      <div style="display:flex; border-bottom:1px solid var(--border-color); background:var(--bg-darker); margin:0; padding:0 20px;">
+        <button id="tab-help-json-btn" class="tab-btn active" style="padding:12px 18px; font-size:13px; font-weight:700; color:var(--accent-light); border:none; background:none; cursor:pointer; border-bottom:2px solid var(--primary);">📘 Documentação JSON (DER/EER)</button>
+        <button id="tab-help-cmd-btn" class="tab-btn" style="padding:12px 18px; font-size:13px; font-weight:700; color:var(--text-muted); border:none; background:none; cursor:pointer; border-bottom:2px solid transparent;">📖 Guia de Comandos Pseudo-Código</button>
+      </div>
+
+      <div class="modal-body" style="display:flex; flex-direction:column; gap:16px; font-size:13px; line-height:1.6; color:var(--text-muted); padding:20px;">
+
+        <!-- TAB 1: Documentação Notação JSON -->
+        <div id="help-panel-json" class="help-tab-panel">
+          
+          <div class="cmd-category-card" style="border-color: var(--primary);">
+            <div class="cmd-category-title" style="color: var(--accent-light); font-size: 16px;">📘 Documentação do Formato JSON — DER / EER Builder</div>
+            <div class="cmd-category-desc" style="font-size: 13px; line-height: 1.6;">
+              Guia completo da notação JSON para especificação de diagramas Entidade-Relacionamento e Entidade-Relacionamento Estendido (EER).
+            </div>
+          </div>
+
+          <!-- 1. Especializações EER -->
+          <div class="cmd-category-card">
+            <div class="cmd-category-title">🧬 1. Especializações EER (Círculos d, o, u)</div>
+            <div class="cmd-category-desc">
+              No EER, os círculos de especialização e categoria utilizam as letras <strong>d</strong>, <strong>o</strong> e <strong>u</strong>:
+            </div>
+
+            <div style="overflow-x: auto; margin-top: 10px;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: left; background: var(--bg-darker); border-radius: 6px; border: 1px solid var(--border-color);">
+                <thead>
+                  <tr style="border-bottom: 1px solid var(--border-color); background: rgba(255,255,255,0.04);">
+                    <th style="padding: 8px 12px; color: var(--accent-light);">Símbolo</th>
+                    <th style="padding: 8px 12px; color: var(--text-main);">Nome</th>
+                    <th style="padding: 8px 12px; color: var(--text-main);">Regra de Negócio</th>
+                    <th style="padding: 8px 12px; color: var(--text-muted);">Exemplo Prático</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="border-bottom: 1px solid var(--border-color);">
+                    <td style="padding: 8px 12px;"><code style="color:#c084fc; font-weight:bold; font-size:14px;">d</code></td>
+                    <td style="padding: 8px 12px; font-weight:600; color:var(--text-main);">Disjunta</td>
+                    <td style="padding: 8px 12px; color:var(--text-muted);">Mutuamente Exclusiva. Uma entidade pertence a no máximo uma sub-classe.</td>
+                    <td style="padding: 8px 12px; color:var(--text-dim);">Funcionario &rarr; Mensalista OU Horista</td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid var(--border-color);">
+                    <td style="padding: 8px 12px;"><code style="color:#c084fc; font-weight:bold; font-size:14px;">o</code></td>
+                    <td style="padding: 8px 12px; font-weight:600; color:var(--text-main);">Sobreposta (Overload)</td>
+                    <td style="padding: 8px 12px; color:var(--text-muted);">As sub-classes podem se sobrepor. Pode pertencer a múltiplas sub-classes.</td>
+                    <td style="padding: 8px 12px; color:var(--text-dim);">Pessoa &rarr; Aluno E Professor</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 12px;"><code style="color:#c084fc; font-weight:bold; font-size:14px;">u</code></td>
+                    <td style="padding: 8px 12px; font-weight:600; color:var(--text-main);">União / Categoria</td>
+                    <td style="padding: 8px 12px; color:var(--text-muted);">A super-classe é uma Categoria composta pela união das sub-classes.</td>
+                    <td style="padding: 8px 12px; color:var(--text-dim);">Veiculo &rarr; Carro e Moto</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div style="margin-top: 12px; font-size: 12px; line-height: 1.6;">
+              <p>• <strong>Linha Dupla (Totalidade)</strong>: Configurada por <code>"total": true</code> no nó de especialização.</p>
+              <p>• <strong>Atributo Definidor</strong>: Opcional, via <code>"definingAttribute": "TipoContrato"</code>.</p>
+            </div>
+          </div>
+
+          <!-- 2. Estrutura e Atributos -->
+          <div class="cmd-category-card">
+            <div class="cmd-category-title">📌 2. Tipos de Atributos no JSON</div>
+            <div class="cmd-category-desc">
+              Valores aceitos na propriedade <code>"type"</code> de cada atributo:
+            </div>
+            <ul style="font-size: 12px; margin-top: 8px; padding-left: 20px; line-height: 1.8;">
+              <li><code>"key"</code>: Chave Primária (Sublinhado sólido visual).</li>
+              <li><code>"partial_key"</code>: Chave Parcial / Discriminador (Sublinhado tracejado para entidade fraca).</li>
+              <li><code>"simple"</code>: Atributo Simples regular.</li>
+              <li><code>"multivalued"</code>: Atributo Multivalorado (Elipse Dupla).</li>
+              <li><code>"derived"</code>: Atributo Derivado (Elipse Tracejada).</li>
+            </ul>
+          </div>
+
+          <!-- 3. Relacionamentos e Recursivos -->
+          <div class="cmd-category-card">
+            <div class="cmd-category-title">🔄 3. Relacionamentos & Auto-Relacionamentos Recursivos</div>
+            <div class="cmd-category-desc">
+              Relacionamentos usam a lista de <code>"participants"</code>. Para auto-relacionamentos recursivos (ex: Supervisão de Empregados), inclua duas entradas para a mesma entidade com seus respectivos papéis (<code>"role"</code>) e cardinalidades:
+            </div>
+            <div class="cmd-snippet-box" style="margin-top: 10px;">
+              <pre class="cmd-code-block">{
+  "name": "supervisao",
+  "type": "recursive",
+  "participants": [
+    { "entity": "Empregado", "role": "É supervisionado", "cardinality": "1" },
+    { "entity": "Empregado", "role": "Supervisiona", "cardinality": "N" }
+  ]
+}</pre>
+            </div>
+          </div>
+
+          <!-- 4. Exemplo Completo Prático -->
+          <div class="cmd-category-card" style="border-color: var(--primary);">
+            <div class="cmd-category-title" style="color: var(--accent-light);">🚀 4. Exemplo JSON Completo Interativo</div>
+            <div class="cmd-category-desc">
+              Cole este código ou clique no botão abaixo para testar diretamente no editor:
+            </div>
+            <div class="cmd-snippet-box" style="margin-top: 10px;">
+              <div class="cmd-snippet-header">
+                <span class="cmd-snippet-label">Exemplo EER em JSON</span>
+                <div class="cmd-actions">
+                  <button class="btn-copy-code" data-code='{
+  "entities": [
+    {
+      "name": "Funcionario",
+      "type": "strong",
+      "attributes": [
+        { "name": "CPF", "type": "key" },
+        { "name": "Nome", "type": "simple" },
+        { "name": "Telefones", "type": "multivalued" }
+      ]
+    },
+    {
+      "name": "Mensalista",
+      "type": "strong",
+      "attributes": [{ "name": "SalarioMensal", "type": "simple" }]
+    },
+    {
+      "name": "Horista",
+      "type": "strong",
+      "attributes": [{ "name": "ValorHora", "type": "simple" }]
+    }
+  ],
+  "specializations": [
+    {
+      "type": "d",
+      "superEntity": "Funcionario",
+      "subEntities": ["Mensalista", "Horista"],
+      "total": false,
+      "definingAttribute": "TipoContrato"
+    }
+  ]
+}'>📋 Copiar JSON</button>
+                  <button class="btn-load-code" data-code='{
+  "entities": [
+    {
+      "name": "Funcionario",
+      "type": "strong",
+      "attributes": [
+        { "name": "CPF", "type": "key" },
+        { "name": "Nome", "type": "simple" },
+        { "name": "Telefones", "type": "multivalued" }
+      ]
+    },
+    {
+      "name": "Mensalista",
+      "type": "strong",
+      "attributes": [{ "name": "SalarioMensal", "type": "simple" }]
+    },
+    {
+      "name": "Horista",
+      "type": "strong",
+      "attributes": [{ "name": "ValorHora", "type": "simple" }]
+    }
+  ],
+  "specializations": [
+    {
+      "type": "d",
+      "superEntity": "Funcionario",
+      "subEntities": ["Mensalista", "Horista"],
+      "total": false,
+      "definingAttribute": "TipoContrato"
+    }
+  ]
+}'>▶ Carregar JSON no Editor</button>
+                </div>
+              </div>
+              <pre class="cmd-code-block">{
+  "entities": [
+    {
+      "name": "Funcionario",
+      "type": "strong",
+      "attributes": [
+        { "name": "CPF", "type": "key" },
+        { "name": "Nome", "type": "simple" },
+        { "name": "Telefones", "type": "multivalued" }
+      ]
+    },
+    {
+      "name": "Mensalista",
+      "type": "strong",
+      "attributes": [{ "name": "SalarioMensal", "type": "simple" }]
+    },
+    {
+      "name": "Horista",
+      "type": "strong",
+      "attributes": [{ "name": "ValorHora", "type": "simple" }]
+    }
+  ],
+  "specializations": [
+    {
+      "type": "d",
+      "superEntity": "Funcionario",
+      "subEntities": ["Mensalista", "Horista"],
+      "total": false,
+      "definingAttribute": "TipoContrato"
+    }
+  ]
+}</pre>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- TAB 2: Guia de Comandos Pseudo-Código -->
+        <div id="help-panel-cmd" class="help-tab-panel hidden">
+
         
         <p>Abaixo estão todos os padrões de pseudo-código suportados pelo **DER Builder**. Você pode copiar qualquer trecho com um clique ou carregá-lo diretamente no editor.</p>
 

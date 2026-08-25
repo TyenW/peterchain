@@ -517,17 +517,24 @@ class PropertyEditor {
 
   // --- ESPECIALIZAÇÃO EER (d, o, u) ---
   renderSpecializationEditor(spec) {
-    this.titleEl.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg> Herança EER`;
+    this.titleEl.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9333ea" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg> Herança / Especialização EER`;
 
-    // Buscar superentidade e subentidades para exibição
+    // Buscar superentidade e subentidades
     const superEnt = spec.superEntityId ? this.model.entities.find(e => e.id === spec.superEntityId) : null;
     const subEnts  = (spec.subEntityIds || [])
       .map(id => this.model.entities.find(e => e.id === id))
       .filter(Boolean);
 
-    const subEntHtml = subEnts.length > 0
-      ? subEnts.map(e => `<span style="display:inline-block;background:#1c3a2a;color:#34d399;border:1px solid #34d39955;border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600;margin:2px;">${this.escapeHtml(e.name)}</span>`).join('')
-      : '<span style="color:var(--text-dim);font-size:12px;">Nenhuma subclasse conectada.</span>';
+    // Opções de Super-entidade
+    const superOptions = this.model.entities.map(e =>
+      `<option value="${e.id}" ${e.id === spec.superEntityId ? 'selected' : ''}>Entidade: ${this.escapeHtml(e.name)}</option>`
+    ).join('');
+
+    // Opções de Sub-entidades candidatas a adicionar
+    const candidateSubs = this.model.entities.filter(e => e.id !== spec.superEntityId && !(spec.subEntityIds || []).includes(e.id));
+    const candidateSubOptions = candidateSubs.map(e =>
+      `<option value="${e.id}">${this.escapeHtml(e.name)}</option>`
+    ).join('');
 
     const html = `
       <!-- Tipo d/o/u -->
@@ -535,7 +542,7 @@ class PropertyEditor {
         <label>Tipo de Especialização / Categoria</label>
         <select id="prop-spec-type">
           <option value="d" ${spec.specType === 'd' ? 'selected' : ''}>d — Disjunta (Mutuamente Exclusiva)</option>
-          <option value="o" ${spec.specType === 'o' ? 'selected' : ''}>o — Sobreposta (Overlapping)</option>
+          <option value="o" ${spec.specType === 'o' ? 'selected' : ''}>o — Sobreposta (Overlapping / Overload)</option>
           <option value="u" ${spec.specType === 'u' ? 'selected' : ''}>u — União / Categoria</option>
         </select>
       </div>
@@ -552,25 +559,42 @@ class PropertyEditor {
       <!-- Atributo Definidor -->
       <div class="form-group">
         <label>Atributo Definidor <span style="color:var(--text-dim);font-weight:400;">(opcional)</span></label>
-        <input type="text" id="prop-spec-defining-attr" placeholder="Ex: Titulação, TipoFunc, Categoria..." value="${this.escapeHtml(spec.definingAttribute || '')}">
-        <small style="font-size:11px;color:var(--text-dim);margin-top:2px;">Exibido ao lado da linha ${superEnt ? this.escapeHtml(superEnt.name) : '?'}→círculo.</small>
+        <input type="text" id="prop-spec-defining-attr" placeholder="Ex: TipoContrato, Titulação..." value="${this.escapeHtml(spec.definingAttribute || '')}">
       </div>
 
-      <!-- Superclasse (read-only info) -->
-      ${superEnt ? `
+      <!-- Superclasse -->
       <div class="form-group">
-        <label>Superclasse</label>
-        <div style="background:var(--bg-darker);border:1px solid var(--border-color);border-radius:6px;padding:6px 10px;font-size:13px;color:#38bdf8;font-weight:600;">${this.escapeHtml(superEnt.name)}</div>
-      </div>` : ''}
+        <label>Superclasse (Entidade Pai)</label>
+        <select id="prop-spec-super">
+          <option value="">-- Selecione a Superclasse --</option>
+          ${superOptions}
+        </select>
+      </div>
 
-      <!-- Subclasses (read-only info) -->
-      <div class="form-group">
-        <label>Subclasses conectadas</label>
-        <div style="background:var(--bg-darker);border:1px solid var(--border-color);border-radius:6px;padding:6px 10px;min-height:30px;">${subEntHtml}</div>
+      <!-- Subclasses conectadas -->
+      <div class="form-group" style="border-top:1px solid rgba(147, 51, 234, 0.2); padding-top:12px; margin-top:8px;">
+        <label style="color:var(--accent-light); font-weight:700;">Subclasses Conectadas</label>
+
+        ${subEnts.length === 0 ? '<p style="font-size:11px; color:var(--text-muted); margin:4px 0;">Nenhuma subclasse vinculada.</p>' : ''}
+        ${subEnts.map(sub => `
+          <div style="display:flex; align-items:center; justify-content:space-between; background:rgba(4,7,17,0.7); border:1px solid rgba(147,51,234,0.3); border-radius:6px; padding:6px 10px; margin-bottom:4px;">
+            <span style="font-size:12px; color:var(--text-main); font-weight:600;">${this.escapeHtml(sub.name)}</span>
+            <button class="btn btn-secondary danger prop-spec-sub-remove" data-sub-id="${sub.id}" style="padding:2px 6px; font-size:10px;" title="Remover Subclasse">&times;</button>
+          </div>
+        `).join('')}
+
+        <!-- Adicionar Subclasse -->
+        <div style="display:flex; gap:6px; margin-top:8px;">
+          <select id="prop-spec-add-sub-select" style="flex:1; padding:6px; font-size:12px;">
+            <option value="">-- Adicionar Subclasse --</option>
+            ${candidateSubOptions}
+          </select>
+          <button id="prop-spec-btn-add-sub" class="btn btn-primary btn-sm" style="padding:6px 10px; font-size:12px;">+</button>
+        </div>
       </div>
 
       <!-- Excluir -->
-      <div class="form-group" style="margin-top: 10px;">
+      <div class="form-group" style="margin-top: 14px;">
         <button id="prop-btn-delete" class="btn btn-secondary danger" style="width:100%; justify-content:center;">Excluir Herança</button>
       </div>
     `;
@@ -583,12 +607,11 @@ class PropertyEditor {
       this.model.notify();
     });
 
-    // Totalidade — atualiza o campo isTotal do spec E a conexão superclasse→círculo
+    // Totalidade
     document.getElementById('prop-spec-total').addEventListener('change', (e) => {
       spec.isTotal = e.target.checked;
-      // Atualizar a conexão super→círculo para refletir a linha dupla/simples
       const superConn = this.model.connections.find(
-        c => (c.sourceId === spec.superEntityId && c.targetId === spec.id)
+        c => (c.sourceId === spec.superEntityId && c.targetId === spec.id) || (c.sourceId === spec.id && c.targetId === spec.superEntityId)
       );
       if (superConn) {
         superConn.isTotalSource = spec.isTotal;
@@ -602,6 +625,55 @@ class PropertyEditor {
       spec.definingAttribute = e.target.value.trim();
       this.model.notify();
     });
+
+    // Alterar Superclasse
+    document.getElementById('prop-spec-super').addEventListener('change', (e) => {
+      const newSuperId = e.target.value || null;
+      if (spec.superEntityId !== newSuperId) {
+        if (spec.superEntityId) {
+          const oldConn = this.model.connections.find(c => (c.sourceId === spec.superEntityId && c.targetId === spec.id) || (c.sourceId === spec.id && c.targetId === spec.superEntityId));
+          if (oldConn) this.model.removeConnection(oldConn.id);
+        }
+        spec.superEntityId = newSuperId;
+        if (newSuperId) {
+          this.model.addConnection(newSuperId, spec.id, '', '', {
+            isTotalSource: Boolean(spec.isTotal),
+            isTotal: Boolean(spec.isTotal)
+          });
+        }
+        this.model.notify();
+        this.renderSpecializationEditor(spec);
+      }
+    });
+
+    // Remover Subclasse
+    this.bodyEl.querySelectorAll('.prop-spec-sub-remove').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const subId = e.currentTarget.getAttribute('data-sub-id');
+        if (subId) {
+          spec.subEntityIds = (spec.subEntityIds || []).filter(id => id !== subId);
+          const conn = this.model.connections.find(c => (c.sourceId === spec.id && c.targetId === subId) || (c.sourceId === subId && c.targetId === spec.id));
+          if (conn) this.model.removeConnection(conn.id);
+          this.model.notify();
+          this.renderSpecializationEditor(spec);
+        }
+      });
+    });
+
+    // Adicionar Subclasse
+    const btnAddSub = document.getElementById('prop-spec-btn-add-sub');
+    const selectAddSub = document.getElementById('prop-spec-add-sub-select');
+    if (btnAddSub && selectAddSub) {
+      btnAddSub.addEventListener('click', () => {
+        const subId = selectAddSub.value;
+        if (subId && !spec.subEntityIds.includes(subId)) {
+          spec.subEntityIds.push(subId);
+          this.model.addConnection(spec.id, subId);
+          this.model.notify();
+          this.renderSpecializationEditor(spec);
+        }
+      });
+    }
 
     // Excluir
     document.getElementById('prop-btn-delete').addEventListener('click', () => {

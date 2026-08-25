@@ -174,6 +174,40 @@ class ChenRenderer extends window.RendererBase {
     }
   }
 
+  getFacesForConnection(conn, source, target, index, count) {
+    const lockSource = (conn.faceSource && conn.faceSource !== 'auto') ? conn.faceSource : null;
+    const lockTarget = (conn.faceTarget && conn.faceTarget !== 'auto') ? conn.faceTarget : null;
+
+    if (lockSource && lockTarget) {
+      return { fSource: lockSource, fTarget: lockTarget };
+    }
+
+    const dx = target.x - source.x;
+    const dy = target.y - source.y;
+
+    if (count > 1) {
+      if (Math.abs(dy) > Math.abs(dx)) {
+        return {
+          fSource: lockSource || (index === 0 ? 'west' : 'east'),
+          fTarget: lockTarget || (index === 0 ? 'west' : 'east')
+        };
+      } else {
+        return {
+          fSource: lockSource || (index === 0 ? 'north' : 'south'),
+          fTarget: lockTarget || (index === 0 ? 'north' : 'south')
+        };
+      }
+    }
+
+    const defaultSource = (Math.abs(dx) >= Math.abs(dy)) ? (dx >= 0 ? 'east' : 'west') : (dy >= 0 ? 'south' : 'north');
+    const defaultTarget = (Math.abs(dx) >= Math.abs(dy)) ? (dx >= 0 ? 'west' : 'east') : (dy >= 0 ? 'north' : 'south');
+
+    return {
+      fSource: lockSource || defaultSource,
+      fTarget: lockTarget || defaultTarget
+    };
+  }
+
   // --- RENDERIZAR CONEXÕES (COM SUPORTE A LINHAS CURVAS PARALELAS SEM SOBREPOSIÇÃO) ---
   renderConnections() {
     const connLayer = (this.layers && this.layers.connectionsLayer) || document.getElementById('connections-layer');
@@ -182,55 +216,36 @@ class ChenRenderer extends window.RendererBase {
     if (connLayer) connLayer.innerHTML = '';
     if (labelsLayer) labelsLayer.innerHTML = '';
 
-    // Mapear quantas conexões cada relacionamento possui por entidade para detectar auto-relacionamentos
-    const relEntityConnCount = new Map();
-    this.model.connections.forEach(conn => {
-      const source = this.model.getElementById(conn.sourceId);
-      const target = this.model.getElementById(conn.targetId);
-      if (!source || !target) return;
-
-      const relId = source.type === 'relationship' ? source.id : (target.type === 'relationship' ? target.id : null);
-      const entId = source.type === 'entity' ? source.id : (target.type === 'entity' ? target.id : null);
-
-      if (relId && entId) {
-        const key = `${relId}___${entId}`;
-        if (!relEntityConnCount.has(key)) relEntityConnCount.set(key, []);
-        relEntityConnCount.get(key).push(conn);
-      }
-    });
-
-    // Agrupar conexões pelo par de nós (sem ordem)
+    // Agrupar conexões pelo par de elementos para identificar conexões múltiplas (auto-relacionamentos)
     const pairGroups = new Map();
     this.model.connections.forEach(conn => {
-      const ids = [conn.sourceId, conn.targetId].sort();
-      const pairKey = ids.join('___');
-      if (!pairGroups.has(pairKey)) {
-        pairGroups.set(pairKey, []);
+      const ids = [conn.sourceId, conn.targetId].sort().join('___');
+      if (!pairGroups.has(ids)) {
+        pairGroups.set(ids, []);
       }
-      pairGroups.get(pairKey).push(conn);
+      pairGroups.get(ids).push(conn);
     });
 
     // Mapear quantas conexões chegam em cada face de cada elemento para Distribuição Dinâmica de Portas
     const elementFaceConns = new Map();
-    this.model.connections.forEach(conn => {
-      const source = this.model.getElementById(conn.sourceId);
-      const target = this.model.getElementById(conn.targetId);
-      if (!source || !target) return;
+    pairGroups.forEach((conns) => {
+      const count = conns.length;
+      conns.forEach((conn, index) => {
+        const source = this.model.getElementById(conn.sourceId);
+        const target = this.model.getElementById(conn.targetId);
+        if (!source || !target) return;
 
-      const dx = target.x - source.x;
-      const dy = target.y - source.y;
+        const { fSource, fTarget } = this.getFacesForConnection(conn, source, target, index, count);
 
-      const fSource = (conn.faceSource && conn.faceSource !== 'auto') ? conn.faceSource : ((Math.abs(dx) >= Math.abs(dy)) ? (dx >= 0 ? 'east' : 'west') : (dy >= 0 ? 'south' : 'north'));
-      const fTarget = (conn.faceTarget && conn.faceTarget !== 'auto') ? conn.faceTarget : ((Math.abs(dx) >= Math.abs(dy)) ? (dx >= 0 ? 'west' : 'east') : (dy >= 0 ? 'north' : 'south'));
+        const keyS = `${source.id}___${fSource}`;
+        const keyT = `${target.id}___${fTarget}`;
 
-      const keyS = `${source.id}___${fSource}`;
-      const keyT = `${target.id}___${fTarget}`;
+        if (!elementFaceConns.has(keyS)) elementFaceConns.set(keyS, []);
+        if (!elementFaceConns.has(keyT)) elementFaceConns.set(keyT, []);
 
-      if (!elementFaceConns.has(keyS)) elementFaceConns.set(keyS, []);
-      if (!elementFaceConns.has(keyT)) elementFaceConns.set(keyT, []);
-
-      elementFaceConns.get(keyS).push({ conn, isSource: true });
-      elementFaceConns.get(keyT).push({ conn, isSource: false });
+        elementFaceConns.get(keyS).push({ conn, isSource: true });
+        elementFaceConns.get(keyT).push({ conn, isSource: false });
+      });
     });
 
     pairGroups.forEach((conns) => {
@@ -244,23 +259,8 @@ class ChenRenderer extends window.RendererBase {
 
         const isSelected = this.selectedConnectionId === conn.id;
 
-        // Calcular face de entrada e saída (especial para auto-relacionamentos estilo EMPREGADO supervisão)
-        const lockSource = (conn.faceSource && conn.faceSource !== 'auto') ? conn.faceSource : null;
-        const lockTarget = (conn.faceTarget && conn.faceTarget !== 'auto') ? conn.faceTarget : null;
-
-        const dx = target.x - source.x;
-        const dy = target.y - source.y;
-
-        let fSource, fTarget;
-        if (count > 1) {
-          // No auto-relacionamento recursivo acadêmico (ex.: Empregado / Supervisão ou Área / Integra):
-          // Cabo 1 sai pelo Topo (Norte) e Cabo 2 sai pela Base (Sul)
-          fSource = lockSource || (index === 0 ? 'north' : 'south');
-          fTarget = lockTarget || (index === 0 ? 'north' : 'south');
-        } else {
-          fSource = lockSource || ((Math.abs(dx) >= Math.abs(dy)) ? (dx >= 0 ? 'east' : 'west') : (dy >= 0 ? 'south' : 'north'));
-          fTarget = lockTarget || ((Math.abs(dx) >= Math.abs(dy)) ? (dx >= 0 ? 'west' : 'east') : (dy >= 0 ? 'north' : 'south'));
-        }
+        // Calcular face de entrada e saída
+        const { fSource, fTarget } = this.getFacesForConnection(conn, source, target, index, count);
 
         // Obter offset de porta para esta face
         const sConns = elementFaceConns.get(`${source.id}___${fSource}`) || [];
@@ -613,21 +613,19 @@ class ChenRenderer extends window.RendererBase {
       const w = elem.width / 2;
       const h = elem.height / 2;
 
-      // Se for conexão com Atributo (Elipse) ou Especialização (Círculo EER), permite sair naturalmente em qualquer ponto/borda da Entidade (direta/diagonal)
+      // Se for conexão com Atributo (Elipse) ou Especialização (Círculo d/o/u), permite sair livremente da aresta em direção ao alvo
       if (target.type === 'attribute' || target.type === 'specialization') {
         const absDx = Math.abs(dx);
         const absDy = Math.abs(dy);
 
-        if (absDx * h >= absDy * w) {
-          // Interseca a borda Leste ou Oeste na altura y correspondente
-          const edgeX = elem.x + Math.sign(dx) * w;
-          const edgeY = elem.y + (dy * w) / (absDx || 1);
-          return { x: edgeX, y: edgeY };
+        if (preferredFace === 'east' || (!preferredFace && absDx * h >= absDy * w && dx >= 0)) {
+          return { x: elem.x + w, y: elem.y + (preferredFace ? portOffset : (dy * w) / (absDx || 1)) };
+        } else if (preferredFace === 'west' || (!preferredFace && absDx * h >= absDy * w && dx < 0)) {
+          return { x: elem.x - w, y: elem.y + (preferredFace ? portOffset : (dy * w) / (absDx || 1)) };
+        } else if (preferredFace === 'north' || (!preferredFace && absDx * h < absDy * w && dy < 0)) {
+          return { x: elem.x + (preferredFace ? portOffset : (dx * h) / (absDy || 1)), y: elem.y - h };
         } else {
-          // Interseca a borda Norte ou Sul na largura x correspondente
-          const edgeY = elem.y + Math.sign(dy) * h;
-          const edgeX = elem.x + (dx * h) / (absDy || 1);
-          return { x: edgeX, y: edgeY };
+          return { x: elem.x + (preferredFace ? portOffset : (dx * h) / (absDy || 1)), y: elem.y + h };
         }
       }
 
@@ -642,10 +640,18 @@ class ChenRenderer extends window.RendererBase {
       if (face === 'south') return { x: elem.x + portOffset, y: elem.y + h };
     }
 
-    // 2. Relacionamentos (Losango): Ancoragem nos 4 vértices das arestas
+    // 2. Relacionamentos (Losango):
     if (elem.type === 'relationship') {
       const w = elem.width / 2;
       const h = elem.height / 2;
+
+      if (target.type === 'attribute' || target.type === 'specialization') {
+        const scale = 1 / ((Math.abs(dx) / w) + (Math.abs(dy) / h) || 1);
+        return {
+          x: elem.x + dx * scale,
+          y: elem.y + dy * scale
+        };
+      }
 
       let face = preferredFace;
       if (!face) {
@@ -658,27 +664,24 @@ class ChenRenderer extends window.RendererBase {
       if (face === 'south') return { x: elem.x + portOffset, y: elem.y + h };
     }
 
-    // 3. Atributos (Elipse): Conexão direta na borda da elipse (Permite Diagonal)
+    // 3. Atributos (Elipse): Conexão direta no perímetro exato da elipse
     if (elem.type === 'attribute') {
-      const angle = Math.atan2(dy, dx);
       const rx = elem.width / 2;
       const ry = elem.height / 2;
-      const tanA = Math.tan(angle);
-      const x = (rx * ry) / Math.sqrt(ry * ry + rx * rx * tanA * tanA);
-      const y = x * tanA;
+      const scale = 1 / (Math.hypot(dx / rx, dy / ry) || 1);
       return {
-        x: elem.x + Math.sign(dx) * Math.abs(x),
-        y: elem.y + Math.sign(dy) * Math.abs(y)
+        x: elem.x + dx * scale,
+        y: elem.y + dy * scale
       };
     }
 
-    // 4. Especializações EER (Círculo)
+    // 4. Especializações EER (Círculo d, o, u): Conexão no perímetro exato do círculo
     if (elem.type === 'specialization') {
-      const angle = Math.atan2(dy, dx);
       const r = 18;
+      const scale = r / (Math.hypot(dx, dy) || 1);
       return {
-        x: elem.x + r * Math.cos(angle),
-        y: elem.y + r * Math.sin(angle)
+        x: elem.x + dx * scale,
+        y: elem.y + dy * scale
       };
     }
 
