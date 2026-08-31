@@ -57,30 +57,30 @@ class DERValidator {
       }
     });
 
-    // --- REGRA 2: Relacionamentos sem 2 entidades/participações conectadas ---
+    // --- REGRA 2: Relacionamentos sem 2 entidades/relacionamentos/participações conectadas ---
     this.model.relationships.forEach(rel => {
       const relConns = this.model.connections.filter(c => c.sourceId === rel.id || c.targetId === rel.id);
-      const connectedEntityIds = new Set();
-      let entityConnCount = 0;
+      const connectedParticipantIds = new Set();
+      let participantConnCount = 0;
 
       relConns.forEach(c => {
         const otherId = c.sourceId === rel.id ? c.targetId : c.sourceId;
-        if (this.model.entities.some(e => e.id === otherId)) {
-          connectedEntityIds.add(otherId);
-          entityConnCount++;
+        if (this.model.entities.some(e => e.id === otherId) || this.model.relationships.some(r => r.id === otherId)) {
+          connectedParticipantIds.add(otherId);
+          participantConnCount++;
         }
       });
 
-      if (entityConnCount < 2) {
+      if (participantConnCount < 2) {
         issues.push({
           type: 'error',
-          message: `O relacionamento [${rel.name}] precisa estar conectado a pelo menos duas entidades (ou possuir duas participações em auto-relacionamento).`,
+          message: `O relacionamento [${rel.name}] precisa estar conectado a pelo menos dois participantes (entidades ou outros relacionamentos).`,
           elementId: rel.id
         });
       }
 
       if (rel.isWeak) {
-        const connectedEntities = [...connectedEntityIds]
+        const connectedEntities = [...connectedParticipantIds]
           .map(id => this.model.entities.find(e => e.id === id))
           .filter(Boolean);
         const hasWeakEntity = connectedEntities.some(e => e.isWeak);

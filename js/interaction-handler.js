@@ -157,38 +157,35 @@ class InteractionHandler {
 
     // --- FERRAMENTA ENTIDADE ---
     else if (this.activeTool === 'entity') {
-      const name = prompt('Nome da nova Entidade:', 'ENTIDADE');
-      if (name && name.trim()) {
-        const res = this.model.addEntity(name, canvasCoords.x, canvasCoords.y);
-        const entity = res.element || res;
-        this.renderer.selectElement(entity.id);
-        this.setTool('select');
-      }
+      const count = this.model.entities.length + 1;
+      const res = this.model.addEntity(`ENTIDADE_${count}`, canvasCoords.x, canvasCoords.y);
+      const entity = res.element || res;
+      this.renderer.selectElement(entity.id);
+      this.setTool('select');
+      if (window.appPropertyEditor) window.appPropertyEditor.show(entity.id, 'element');
     }
 
     // --- FERRAMENTA ATRIBUTO ---
     else if (this.activeTool === 'attribute') {
-      const name = prompt('Nome do novo Atributo:', 'Nome');
-      if (name && name.trim()) {
-        let parentId = null;
-        if (targetElementG) {
-          parentId = targetElementG.getAttribute('data-id');
-        }
-        const attr = this.model.addAttribute(name, parentId, false, canvasCoords.x, canvasCoords.y);
-        this.renderer.selectElement(attr.id);
-        this.setTool('select');
+      const count = this.model.attributes.length + 1;
+      let parentId = null;
+      if (targetElementG) {
+        parentId = targetElementG.getAttribute('data-id');
       }
+      const attr = this.model.addAttribute(`atributo${count}`, parentId, false, canvasCoords.x, canvasCoords.y);
+      this.renderer.selectElement(attr.id);
+      this.setTool('select');
+      if (window.appPropertyEditor) window.appPropertyEditor.show(attr.id, 'element');
     }
 
     // --- FERRAMENTA RELACIONAMENTO ---
     else if (this.activeTool === 'relationship') {
-      const name = prompt('Nome do novo Relacionamento:', 'RELACIONA');
-      if (name && name.trim()) {
-        const res = this.model.addRelationship(name, canvasCoords.x, canvasCoords.y);
-        const rel = res.element || res;
-        this.renderer.selectElement(rel.id);
-        this.setTool('select');
-      }
+      const count = this.model.relationships.length + 1;
+      const res = this.model.addRelationship(`RELACIONA_${count}`, canvasCoords.x, canvasCoords.y);
+      const rel = res.element || res;
+      this.renderer.selectElement(rel.id);
+      this.setTool('select');
+      if (window.appPropertyEditor) window.appPropertyEditor.show(rel.id, 'element');
     }
 
     // --- FERRAMENTA CONECTAR COM VALIDAÇÃO SEMÂNTICA ---
@@ -214,6 +211,16 @@ class InteractionHandler {
                   this.model.addConnection(this.connectSourceId, id);
                   this.cancelConnection();
                   this.setTool('select');
+                  return;
+                }
+
+                // Suporte a Relacionamento <-> Relacionamento (Agregação / Relação de Relações)
+                if (src.type === 'relationship' && tgt.type === 'relationship') {
+                  const connExists = this.model.connections.some(c => (c.sourceId === src.id && c.targetId === tgt.id) || (c.sourceId === tgt.id && c.targetId === src.id));
+                  this.model.addConnection(src.id, tgt.id, '1', 'N', { forceNew: connExists });
+                  this.cancelConnection();
+                  this.setTool('select');
+                  if (window.showToast) window.showToast(`Relacionamentos "${src.name}" e "${tgt.name}" conectados!`, 'success');
                   return;
                 }
 

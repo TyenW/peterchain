@@ -349,10 +349,11 @@ class ChenRenderer extends window.RendererBase {
           }
         }
 
-        // Renderizar cardinalidade individual perto do losango do relacionamento (máxima cardinalidade da ponta)
+        // Renderizar cardinalidade individual perto do losango do relacionamento (se definida, apenas 1 ou N)
         const relIsTarget = target.type === 'relationship';
         const relIsSource = source.type === 'relationship';
-        const cardValue = conn.cardinalitySource || conn.cardinalityTarget;
+        let cardValue = (conn.cardinalitySource || conn.cardinalityTarget || '').trim();
+        if (cardValue === 'M' || cardValue === 'm') cardValue = 'N';
 
         if (cardValue) {
           // Ponto de ancoragem da cardinalidade no segmento final próximo ao losango do relacionamento
@@ -634,34 +635,30 @@ class ChenRenderer extends window.RendererBase {
         face = (Math.abs(dx) >= Math.abs(dy)) ? (dx >= 0 ? 'east' : 'west') : (dy >= 0 ? 'south' : 'north');
       }
 
-      if (face === 'east') return { x: elem.x + w, y: elem.y + portOffset };
-      if (face === 'west') return { x: elem.x - w, y: elem.y + portOffset };
-      if (face === 'north') return { x: elem.x + portOffset, y: elem.y - h };
-      if (face === 'south') return { x: elem.x + portOffset, y: elem.y + h };
+      // Distribuição dinâmica de saída ao longo da aresta retangular
+      const flexX = Math.max(-w * 0.7, Math.min(w * 0.7, dx * 0.4)) + portOffset;
+      const flexY = Math.max(-h * 0.7, Math.min(h * 0.7, dy * 0.4)) + portOffset;
+
+      if (face === 'east') return { x: elem.x + w, y: elem.y + flexY };
+      if (face === 'west') return { x: elem.x - w, y: elem.y + flexY };
+      if (face === 'north') return { x: elem.x + flexX, y: elem.y - h };
+      if (face === 'south') return { x: elem.x + flexX, y: elem.y + h };
     }
 
-    // 2. Relacionamentos (Losango):
+    // 2. Relacionamentos (Losango): Conexões saem ESTRITAMENTE de um dos 4 vértices do losango (Norte, Sul, Leste, Oeste)
     if (elem.type === 'relationship') {
       const w = elem.width / 2;
       const h = elem.height / 2;
-
-      if (target.type === 'attribute' || target.type === 'specialization') {
-        const scale = 1 / ((Math.abs(dx) / w) + (Math.abs(dy) / h) || 1);
-        return {
-          x: elem.x + dx * scale,
-          y: elem.y + dy * scale
-        };
-      }
 
       let face = preferredFace;
       if (!face) {
         face = (Math.abs(dx) >= Math.abs(dy)) ? (dx >= 0 ? 'east' : 'west') : (dy >= 0 ? 'south' : 'north');
       }
 
-      if (face === 'east') return { x: elem.x + w, y: elem.y + portOffset };
-      if (face === 'west') return { x: elem.x - w, y: elem.y + portOffset };
-      if (face === 'north') return { x: elem.x + portOffset, y: elem.y - h };
-      if (face === 'south') return { x: elem.x + portOffset, y: elem.y + h };
+      if (face === 'east') return { x: elem.x + w, y: elem.y };
+      if (face === 'west') return { x: elem.x - w, y: elem.y };
+      if (face === 'north') return { x: elem.x, y: elem.y - h };
+      if (face === 'south') return { x: elem.x, y: elem.y + h };
     }
 
     // 3. Atributos (Elipse): Conexão direta no perímetro exato da elipse

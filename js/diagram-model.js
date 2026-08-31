@@ -686,6 +686,7 @@ class DiagramModel {
   // --- SERIALIZAÇÃO ---
   toJSON() {
     return {
+      title: this.title || (typeof document !== 'undefined' && document.getElementById('project-title-input')?.value) || 'Sistema Acadêmico',
       entities: this.entities,
       attributes: this.attributes,
       relationships: this.relationships,
@@ -696,6 +697,14 @@ class DiagramModel {
 
   fromJSON(data) {
     if (!data) return;
+
+    if (data.title) {
+      this.title = data.title;
+      if (typeof document !== 'undefined') {
+        const input = document.getElementById('project-title-input');
+        if (input) input.value = data.title;
+      }
+    }
 
     // Auto-detect format: formato externo usa 'participants' nos relacionamentos e não possui 'connections'
     const isExternalFormat = Boolean(

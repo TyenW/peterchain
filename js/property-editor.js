@@ -148,9 +148,13 @@ class PropertyEditor {
       `<option value="${a.id}">${this.escapeHtml(a.name)}</option>`
     ).join('');
 
-    // Opções de Elemento Pai (Entidade ou outro Atributo)
+    // Opções de Elemento Pai (Entidade, Relacionamento ou outro Atributo)
     const parentEntityOptions = this.model.entities.map(e => 
       `<option value="${e.id}" ${attr.parentId === e.id ? 'selected' : ''}>Entidade: ${this.escapeHtml(e.name)}</option>`
+    ).join('');
+
+    const parentRelOptions = this.model.relationships.map(r => 
+      `<option value="${r.id}" ${attr.parentId === r.id ? 'selected' : ''}>Relacionamento: ${this.escapeHtml(r.name)}</option>`
     ).join('');
     
     const parentAttrOptions = this.model.attributes
@@ -196,9 +200,8 @@ class PropertyEditor {
         <label>Vínculo Superior (Pai)</label>
         <select id="prop-parent">
           <option value="">-- Sem Vinculo --</option>
-          <optgroup label="Entidades">
-            ${parentEntityOptions}
-          </optgroup>
+          ${parentEntityOptions ? `<optgroup label="Entidades">${parentEntityOptions}</optgroup>` : ''}
+          ${parentRelOptions ? `<optgroup label="Relacionamentos">${parentRelOptions}</optgroup>` : ''}
           ${parentAttrOptions ? `<optgroup label="Atributos Compostos">${parentAttrOptions}</optgroup>` : ''}
         </select>
       </div>
@@ -367,6 +370,15 @@ class PropertyEditor {
       })
       .filter(Boolean);
 
+    // Atributos vinculados a este relacionamento
+    const relAttrs = this.model.attributes.filter(a => a.parentId === rel.id);
+    
+    // Atributos sem pai que podem ser vinculados ao relacionamento
+    const candidateRelAttrs = this.model.attributes.filter(a => !a.parentId);
+    const candidateRelOptions = candidateRelAttrs.map(a => 
+      `<option value="${a.id}">${this.escapeHtml(a.name)}</option>`
+    ).join('');
+
     const availableEntities = this.model.entities;
     const addEntityOptions = availableEntities
       .map(e => `<option value="${e.id}">${this.escapeHtml(e.name)}</option>`)
@@ -399,10 +411,9 @@ class PropertyEditor {
               <div style="display:flex; align-items:center; gap:6px;">
                 <label style="font-size:11px; font-weight:600; color:var(--text-muted); width:80px; flex-shrink:0; text-transform:uppercase;">Cardinalidade:</label>
                 <select class="prop-rel-card" data-conn-id="${item.conn.id}" data-entity-source="${item.entityIsSource}" title="Cardinalidade" style="flex:1; padding:6px 8px; font-size:12px;">
-                  <option value="">-- Cardinalidade --</option>
-                  <option value="1" ${item.cardVal === '1' ? 'selected' : ''}>1 (Um)</option>
-                  <option value="N" ${item.cardVal === 'N' ? 'selected' : ''}>N (Muitos)</option>
-                  <option value="M" ${item.cardVal === 'M' ? 'selected' : ''}>M (Muitos)</option>
+                  <option value="">-- Sem Cardinalidade --</option>
+                  <option value="1" ${item.cardVal === '1' ? 'selected' : ''}>1</option>
+                  <option value="N" ${item.cardVal === 'N' || item.cardVal === 'M' ? 'selected' : ''}>N</option>
                 </select>
               </div>
 
@@ -431,6 +442,36 @@ class PropertyEditor {
         </div>
       </div>
 
+      <!-- Seção de Atributos do Relacionamento -->
+      <div class="form-group" style="border-top:1px solid rgba(0, 240, 255, 0.15); padding-top:12px; margin-top:12px;">
+        <label style="color:var(--accent-light); font-weight:700;">Atributos do Relacionamento</label>
+        
+        ${relAttrs.length === 0 ? '<p style="font-size:11px; color:var(--text-muted); margin:4px 0;">Nenhum atributo associado.</p>' : ''}
+        ${relAttrs.map(child => `
+          <div style="display:flex; align-items:center; justify-content:space-between; background:rgba(4,7,17,0.7); border:1px solid rgba(0,240,255,0.2); border-radius:6px; padding:6px 10px; margin-bottom:4px;">
+            <span style="font-size:12px; color:var(--text-main); font-weight:600;">${this.escapeHtml(child.name)}</span>
+            <button class="btn btn-secondary danger prop-rel-attr-remove" data-attr-id="${child.id}" style="padding:2px 6px; font-size:10px;" title="Desvincular Atributo">&times;</button>
+          </div>
+        `).join('')}
+
+        <!-- Criar Novo Atributo no Relacionamento -->
+        <div style="display:flex; gap:6px; margin-top:8px;">
+          <input type="text" id="prop-new-rel-attr-name" placeholder="Novo atributo (ex: Data, Horas)..." style="flex:1; padding:6px 8px; font-size:12px;">
+          <button id="prop-btn-add-rel-attr" class="btn btn-primary" style="padding:6px 10px; font-size:11px;">+ Criar</button>
+        </div>
+
+        <!-- Vincular Atributo Existente -->
+        ${candidateRelAttrs.length > 0 ? `
+          <div style="display:flex; gap:6px; margin-top:6px;">
+            <select id="prop-link-rel-attr-select" style="flex:1; padding:6px 8px; font-size:12px;">
+              <option value="">-- Vincular Existente --</option>
+              ${candidateRelOptions}
+            </select>
+            <button id="prop-btn-link-rel-attr" class="btn btn-secondary" style="padding:6px 10px; font-size:11px;">+ Vincular</button>
+          </div>
+        ` : ''}
+      </div>
+
       <div class="form-group" style="margin-top: 12px; border-top:1px solid rgba(255,255,255,0.1); padding-top:12px;">
         <button id="prop-btn-delete" class="btn btn-secondary danger" style="width:100%; justify-content:center;">Excluir Relacionamento</button>
       </div>
@@ -446,6 +487,55 @@ class PropertyEditor {
     document.getElementById('prop-is-weak-rel').addEventListener('change', (e) => {
       rel.isWeak = e.target.checked;
       this.model.notify();
+    });
+
+    // Handlers para Atributos do Relacionamento
+    const btnAddRelAttr = document.getElementById('prop-btn-add-rel-attr');
+    const inputNewRelAttr = document.getElementById('prop-new-rel-attr-name');
+    if (btnAddRelAttr && inputNewRelAttr) {
+      const createRelAttr = () => {
+        const attrName = inputNewRelAttr.value.trim();
+        if (attrName) {
+          this.model.addAttribute(attrName, rel.id);
+          this.renderRelationshipEditor(rel);
+        }
+      };
+      btnAddRelAttr.addEventListener('click', createRelAttr);
+      inputNewRelAttr.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          createRelAttr();
+        }
+      });
+    }
+
+    const btnLinkRelAttr = document.getElementById('prop-btn-link-rel-attr');
+    const selectLinkRelAttr = document.getElementById('prop-link-rel-attr-select');
+    if (btnLinkRelAttr && selectLinkRelAttr) {
+      btnLinkRelAttr.addEventListener('click', () => {
+        const targetAttrId = selectLinkRelAttr.value;
+        const targetAttr = this.model.attributes.find(a => a.id === targetAttrId);
+        if (targetAttr) {
+          targetAttr.parentId = rel.id;
+          this.model.addConnection(targetAttr.id, rel.id);
+          this.model.notify();
+          this.renderRelationshipEditor(rel);
+        }
+      });
+    }
+
+    this.bodyEl.querySelectorAll('.prop-rel-attr-remove').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const attrId = e.currentTarget.getAttribute('data-attr-id');
+        const child = this.model.attributes.find(a => a.id === attrId);
+        if (child) {
+          const oldConn = this.model.connections.find(c => (c.sourceId === child.id && c.targetId === rel.id) || (c.sourceId === rel.id && c.targetId === child.id));
+          if (oldConn) this.model.removeConnection(oldConn.id);
+          child.parentId = null;
+          this.model.notify();
+          this.renderRelationshipEditor(rel);
+        }
+      });
     });
 
     document.querySelectorAll('.prop-rel-card').forEach(select => {
@@ -720,26 +810,18 @@ class PropertyEditor {
         <div class="form-group">
           <label>Cardinalidade em ${sourceElem ? this.escapeHtml(sourceElem.name) : 'Origem'}</label>
           <select id="prop-card-source">
-            <option value="">-- Nenhuma --</option>
+            <option value="">-- Sem Cardinalidade --</option>
             <option value="1" ${conn.cardinalitySource === '1' ? 'selected' : ''}>1</option>
-            <option value="N" ${conn.cardinalitySource === 'N' ? 'selected' : ''}>N</option>
-            <option value="M" ${conn.cardinalitySource === 'M' ? 'selected' : ''}>M</option>
-            <option value="1..1" ${conn.cardinalitySource === '1..1' ? 'selected' : ''}>1..1</option>
-            <option value="1..n" ${conn.cardinalitySource === '1..n' ? 'selected' : ''}>1..n</option>
-            <option value="n..n" ${conn.cardinalitySource === 'n..n' ? 'selected' : ''}>n..n</option>
+            <option value="N" ${(conn.cardinalitySource === 'N' || conn.cardinalitySource === 'M') ? 'selected' : ''}>N</option>
           </select>
         </div>
 
         <div class="form-group">
           <label>Cardinalidade em ${targetElem ? this.escapeHtml(targetElem.name) : 'Destino'}</label>
           <select id="prop-card-target">
-            <option value="">-- Nenhuma --</option>
+            <option value="">-- Sem Cardinalidade --</option>
             <option value="1" ${conn.cardinalityTarget === '1' ? 'selected' : ''}>1</option>
-            <option value="N" ${conn.cardinalityTarget === 'N' ? 'selected' : ''}>N</option>
-            <option value="M" ${conn.cardinalityTarget === 'M' ? 'selected' : ''}>M</option>
-            <option value="1..1" ${conn.cardinalityTarget === '1..1' ? 'selected' : ''}>1..1</option>
-            <option value="1..n" ${conn.cardinalityTarget === '1..n' ? 'selected' : ''}>1..n</option>
-            <option value="n..n" ${conn.cardinalityTarget === 'n..n' ? 'selected' : ''}>n..n</option>
+            <option value="N" ${(conn.cardinalityTarget === 'N' || conn.cardinalityTarget === 'M') ? 'selected' : ''}>N</option>
           </select>
         </div>
 

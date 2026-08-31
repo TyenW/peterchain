@@ -687,3 +687,42 @@ g.invalid .entity-rect {
   stroke-dasharray: none !important;
   filter: drop-shadow(0 0 8px rgba(0, 240, 255, 0.6));
 }
+
+/* --- BARRA SUPERIOR RETRÁTIL (ANIMADA E FLUTUANTE) --- */
+.canvas-toolbar {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 120;
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: visible;
+  max-width: 95vw;
+}
+
+.canvas-toolbar.collapsed {
+  top: 14px;
+  left: calc(100% - 60px);
+  transform: none;
+  padding: 6px 12px;
+  border-radius: 20px;
+  background: rgba(8, 13, 26, 0.95);
+  border: 1px solid rgba(0, 240, 255, 0.6);
+  box-shadow: 0 0 25px rgba(0, 240, 255, 0.45), 0 6px 20px rgba(0, 0, 0, 0.7);
+  cursor: pointer;
+}
+
+.canvas-toolbar.collapsed .tool-group:not(.toggle-group),
+.canvas-toolbar.collapsed .tool-divider {
+  display: none !important;
+}
+
+.toggle-toolbar-btn {
+  transition: transform 0.3s ease;
+  cursor: pointer;
+}
+
+.canvas-toolbar.collapsed .toggle-toolbar-btn {
+  transform: rotate(180deg);
+}
+

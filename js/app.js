@@ -1,11 +1,34 @@
-/**
- * DER Builder — Controlador Principal da Aplicação
- * Integração entre Modelo, Parser NLP, SVG Canvas, Histórico, Validação e Persistência
- */
+// Global Cyber Toast Notification System (Replaces native browser alert/prompt)
+window.showToast = function(msg, type = 'info') {
+  let container = document.getElementById('cyber-toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'cyber-toast-container';
+    container.className = 'cyber-toast-container';
+    document.body.appendChild(container);
+  }
+  const toast = document.createElement('div');
+  toast.className = `cyber-toast ${type}`;
+  let icon = '⚡';
+  if (type === 'success') icon = '✓';
+  else if (type === 'error') icon = '⚠️';
+  
+  toast.innerHTML = `<span>${icon}</span> <span>${msg}</span>`;
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(20px)';
+    toast.style.transition = 'all 0.3s ease';
+    setTimeout(() => toast.remove(), 300);
+  }, 2800);
+};
+
 document.addEventListener('DOMContentLoaded', () => {
   // 1. Instanciar Módulos Core
   const model = new DiagramModel();
   const controller = new CanvasController(model);
+  window.appController = controller;
   controller.setRenderer(new ChenRenderer(model, controller.layers));
   const handler = new InteractionHandler(model, controller);
   const propertyEditor = new PropertyEditor(model, controller);
@@ -17,14 +40,61 @@ document.addEventListener('DOMContentLoaded', () => {
   const storageManager = new StorageExportManager(model);
   window.appHistoryManager = historyManager;
 
+  const projectTitleInput = document.getElementById('project-title-input');
+
+  // Auto-Restaurar rascunho automático e título do projeto do localStorage
+  try {
+    const savedTitle = localStorage.getItem('peterchain_project_title');
+    if (savedTitle && projectTitleInput) {
+      projectTitleInput.value = savedTitle;
+      model.title = savedTitle;
+    }
+    const savedDraft = localStorage.getItem('peterchain_auto_draft');
+    if (savedDraft) {
+      const parsed = JSON.parse(savedDraft);
+      if (parsed) {
+        if (parsed.title && projectTitleInput && !savedTitle) {
+          projectTitleInput.value = parsed.title;
+          model.title = parsed.title;
+        }
+        if (parsed.entities?.length > 0 || parsed.relationships?.length > 0) {
+          model.fromJSON(parsed);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Não foi possível carregar o rascunho automático:', err);
+  }
+
+  // Evento de salvamento automático ao alterar o nome do projeto
+  if (projectTitleInput) {
+    const autoSaveTitle = () => {
+      const newTitle = projectTitleInput.value.trim() || 'Sistema';
+      model.title = newTitle;
+      localStorage.setItem('peterchain_project_title', newTitle);
+      try {
+        const json = model.toJSON();
+        json.title = newTitle;
+        localStorage.setItem('peterchain_auto_draft', JSON.stringify(json));
+      } catch (e) {}
+      model.notify();
+    };
+
+    projectTitleInput.addEventListener('input', autoSaveTitle);
+    projectTitleInput.addEventListener('change', autoSaveTitle);
+    projectTitleInput.addEventListener('blur', autoSaveTitle);
+  }
+
   // Mapeamento de Elementos da Interface DOM
   const nlpInput = document.getElementById('nlp-input');
+  if (nlpInput && !nlpInput.value.trim()) {
+    nlpInput.value = JSON.stringify(model.toJSON(), null, 2);
+  }
   const btnGenerate = document.getElementById('btn-generate-diagram');
   const btnAppend = document.getElementById('btn-append-command');
   const btnClearText = document.getElementById('btn-clear-text');
   const terminalLog = document.getElementById('terminal-log');
   const parsedSummary = document.getElementById('parsed-summary');
-  const projectTitleInput = document.getElementById('project-title-input');
 
   // 2. Função de Atualização de Logs no Terminal
   function renderTerminalLog(logEntries) {
@@ -98,6 +168,11 @@ document.addEventListener('DOMContentLoaded', () => {
       nlpInput.value = JSON.stringify(model.toJSON(), null, 2);
     }
     tabularManager.render();
+    
+    // Auto-salva rascunho automático continuamente
+    try {
+      localStorage.setItem('peterchain_auto_draft', JSON.stringify(model.toJSON()));
+    } catch (e) {}
   });
 
   // Tab Switching Logic
@@ -216,7 +291,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-clear-canvas').addEventListener('click', () => {
     if (confirm('Tem certeza que deseja limpar todo o diagrama?')) {
       model.clear();
+      try { localStorage.removeItem('peterchain_auto_draft'); } catch(e){}
       controller.clearSelection();
+      if (window.showToast) window.showToast('Diagrama limpo com sucesso.', 'info');
     }
   });
 
@@ -224,9 +301,11 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-new-diagram').addEventListener('click', () => {
     if (confirm('Criar um novo diagrama em branco?')) {
       model.clear();
+      try { localStorage.removeItem('peterchain_auto_draft'); } catch(e){}
       nlpInput.value = '';
       projectTitleInput.value = 'Novo Diagrama';
       renderTerminalLog([{ msg: 'Novo diagrama iniciado.', type: 'info', timestamp: new Date().toLocaleTimeString() }]);
+      if (window.showToast) window.showToast('Novo diagrama em branco iniciado.', 'info');
     }
   });
 
@@ -234,7 +313,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const title = projectTitleInput.value.trim() || 'Sistema Acadêmico';
     const saved = storageManager.saveProject(title);
     if (saved) {
-      alert(`Projeto "${title}" salvo com sucesso no navegador!`);
+      if (window.showToast) {
+        window.showToast(`Projeto "${title}" salvo com sucesso!`, 'success');
+      }
     }
   });
 
@@ -269,39 +350,40 @@ document.addEventListener('DOMContentLoaded', () => {
     return true;
   }
 
+  const getFormattedFilename = (ext, suffix = '') => {
+    const raw = (projectTitleInput.value.trim() || 'Projeto').replace(/\s+/g, '_').toLowerCase();
+    const clean = raw.startsWith('der_') ? raw : `der_${raw}`;
+    return `${clean}${suffix}.${ext}`;
+  };
+
   document.getElementById('export-png').addEventListener('click', () => {
     if (!checkExportValidation()) return;
-    const title = projectTitleInput.value.trim().toLowerCase().replace(/\s+/g, '_');
-    storageManager.exportPNG(`${title}_der_pb.png`, { isColored: false, addLegend: false });
+    storageManager.exportPNG(getFormattedFilename('png', '_pb'), { isColored: false, addLegend: false });
   });
 
   const exportPngColorBtn = document.getElementById('export-png-color');
   if (exportPngColorBtn) {
     exportPngColorBtn.addEventListener('click', () => {
       if (!checkExportValidation()) return;
-      const title = projectTitleInput.value.trim().toLowerCase().replace(/\s+/g, '_');
-      storageManager.exportPNG(`${title}_der_colorido.png`, { isColored: true, addLegend: true });
+      storageManager.exportPNG(getFormattedFilename('png', '_colorido'), { isColored: true, addLegend: true });
     });
   }
 
   document.getElementById('export-svg').addEventListener('click', () => {
     if (!checkExportValidation()) return;
-    const title = projectTitleInput.value.trim().toLowerCase().replace(/\s+/g, '_');
-    storageManager.exportSVG(`${title}_der_pb.svg`, { isColored: false, addLegend: false });
+    storageManager.exportSVG(getFormattedFilename('svg', '_pb'), { isColored: false, addLegend: false });
   });
 
   const exportSvgColorBtn = document.getElementById('export-svg-color');
   if (exportSvgColorBtn) {
     exportSvgColorBtn.addEventListener('click', () => {
       if (!checkExportValidation()) return;
-      const title = projectTitleInput.value.trim().toLowerCase().replace(/\s+/g, '_');
-      storageManager.exportSVG(`${title}_der_colorido.svg`, { isColored: true, addLegend: true });
+      storageManager.exportSVG(getFormattedFilename('svg', '_colorido'), { isColored: true, addLegend: true });
     });
   }
 
   document.getElementById('export-json').addEventListener('click', () => {
-    const title = projectTitleInput.value.trim().toLowerCase().replace(/\s+/g, '_');
-    storageManager.exportJSON(`${title}_der.json`);
+    storageManager.exportJSON(getFormattedFilename('json'));
   });
 
   // Importar JSON
@@ -584,13 +666,75 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // 9. Atalhos Globais de Salvamento (Ctrl + S)
+  // 9. Atalhos Globais de Salvamento (Ctrl + S) e Alternância de Painel (Ctrl + B)
   window.addEventListener('keydown', (e) => {
-    if (e.ctrlKey && e.key === 's') {
+    if (e.ctrlKey && e.key.toLowerCase() === 's') {
       e.preventDefault();
       const title = projectTitleInput.value.trim() || 'Sistema Acadêmico';
       storageManager.saveProject(title);
       alert(`Projeto "${title}" salvo!`);
+    } else if (e.ctrlKey && e.key.toLowerCase() === 'b') {
+      e.preventDefault();
+      if (nlpPanel.classList.contains('collapsed')) {
+        expandLeftPanel();
+      } else {
+        collapseLeftPanel();
+      }
     }
   });
+
+  // 10. Lógica de Painel Lateral e Barra de Ferramentas Retráteis (Animadas)
+  const btnToggleLeftPanel = document.getElementById('btn-toggle-left-panel');
+  const btnReopenLeftPanel = document.getElementById('btn-reopen-left-panel');
+
+  let savedPanelWidth = '380px';
+
+  function collapseLeftPanel() {
+    if (!nlpPanel) return;
+    savedPanelWidth = nlpPanel.style.width || '380px';
+    nlpPanel.classList.add('collapsed');
+    if (resizer) resizer.style.display = 'none';
+    if (btnReopenLeftPanel) btnReopenLeftPanel.classList.remove('hidden');
+  }
+
+  function expandLeftPanel() {
+    if (!nlpPanel) return;
+    nlpPanel.classList.remove('collapsed');
+    nlpPanel.style.width = savedPanelWidth;
+    if (resizer) resizer.style.display = 'block';
+    if (btnReopenLeftPanel) btnReopenLeftPanel.classList.add('hidden');
+  }
+
+  if (btnToggleLeftPanel) {
+    btnToggleLeftPanel.addEventListener('click', collapseLeftPanel);
+  }
+  if (btnReopenLeftPanel) {
+    btnReopenLeftPanel.addEventListener('click', expandLeftPanel);
+  }
+
+  const canvasToolbar = document.getElementById('canvas-toolbar');
+  const btnToggleToolbar = document.getElementById('btn-toggle-toolbar');
+
+  function toggleToolbar() {
+    if (!canvasToolbar) return;
+    const isCollapsed = canvasToolbar.classList.toggle('collapsed');
+    if (btnToggleToolbar) {
+      btnToggleToolbar.setAttribute('title', isCollapsed ? 'Expandir Barra de Ferramentas' : 'Recolher Barra de Ferramentas');
+    }
+  }
+
+  if (btnToggleToolbar) {
+    btnToggleToolbar.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleToolbar();
+    });
+  }
+
+  if (canvasToolbar) {
+    canvasToolbar.addEventListener('click', (e) => {
+      if (canvasToolbar.classList.contains('collapsed')) {
+        toggleToolbar();
+      }
+    });
+  }
 });

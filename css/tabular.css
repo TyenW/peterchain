@@ -157,6 +157,101 @@
 .badge-multi { background: rgba(16, 185, 129, 0.15); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.3); }
 .badge-deriv { background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); }
 
+.badge-sm.badge-deriv {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+/* --- CARDS DE CRIAÇÃO INLINE ANIMADOS & SENSÍVEIS --- */
+@keyframes fadeInScale {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animated-fade-in {
+  animation: fadeInScale 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.inline-create-card {
+  background: rgba(13, 20, 36, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7), 0 0 20px rgba(0, 240, 255, 0.25);
+}
+
+.inline-create-card input[type="text"],
+.inline-create-card select {
+  background: rgba(4, 7, 17, 0.9) !important;
+  border: 1px solid rgba(0, 240, 255, 0.35) !important;
+  border-radius: 6px !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+  padding: 7px 10px !important;
+  transition: all 0.2s ease;
+}
+
+.inline-create-card input[type="text"]:focus,
+.inline-create-card select:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.4) !important;
+}
+
+/* Toast Notifications (Substitutos de JS Alert) */
+.cyber-toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.cyber-toast {
+  pointer-events: auto;
+  min-width: 260px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: rgba(8, 13, 26, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(0, 240, 255, 0.4);
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 240, 255, 0.25);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  animation: toastSlideIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.cyber-toast.success { border-color: var(--success); }
+.cyber-toast.error { border-color: var(--danger); }
+.cyber-toast.info { border-color: var(--accent); }
+
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .tabular-divider { 
   border: none; 
   border-top: 1px dashed rgba(0, 240, 255, 0.2); 
